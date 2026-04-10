@@ -1,0 +1,36 @@
+import { getBrowser } from '../browser.js'
+
+export async function scrapeLaMundial(query) {
+  const browser = await getBrowser()
+  const page = await browser.newPage()
+  await page.setExtraHTTPHeaders({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36'
+  })
+
+  try {
+    await page.goto(`https://www.perfumerialamundial.cl/search?q=${encodeURIComponent(query)}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    })
+    await page.waitForSelector('.productgrid--item', { timeout: 10000 })
+
+    return await page.evaluate(() => {
+      const items = document.querySelectorAll('.productgrid--item')
+      return Array.from(items).slice(0, 10).map(el => {
+        const name = el.querySelector('.productitem--title, [class*="productitem__title"], [class*="title"] a')?.innerText?.trim() || ''
+        const priceText = el.querySelector('.productitem__price, .price')?.innerText?.trim() || '0'
+        const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0
+        const imageUrl = el.querySelector('img')?.src || ''
+        const link = el.querySelector('a[href*="/products/"]')?.href || ''
+        return {
+          store: 'La Mundial', storeLogo: 'lamundial',
+          productName: name, price,
+          priceFormatted: `$${price.toLocaleString('es-CL')}`,
+          imageUrl, productUrl: link, available: true,
+        }
+      }).filter(p => p.productName && p.price > 0)
+    })
+  } finally {
+    await page.close()
+  }
+}
