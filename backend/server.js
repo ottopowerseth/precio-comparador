@@ -39,8 +39,8 @@ app.get('/api/search', async (req, res) => {
   const storeStatus = {}
   const allResults = []
 
-  // Ejecutar scrapers con concurrencia limitada (máx 3 a la vez)
-  const CONCURRENCY = 2
+  // Ejecutar scrapers de forma secuencial (1 a la vez) para no sobrecargar RAM
+  const CONCURRENCY = 1
   let index = 0
   const mutex = []
 
@@ -51,7 +51,7 @@ app.get('/api/search', async (req, res) => {
         const results = await Promise.race([
           fn(query),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 30000)
+            setTimeout(() => reject(new Error('timeout')), 45000)
           ),
         ])
         allResults.push(...results)
