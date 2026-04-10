@@ -23,8 +23,7 @@ export default function App() {
     setStoreStatus({})
 
     try {
-      const API = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${API}/api/search?q=${encodeURIComponent(term)}`)
+      const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`)
       const data = await res.json()
       setResults(data.results || [])
       setStoreStatus(data.storeStatus || {})
