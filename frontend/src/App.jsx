@@ -14,24 +14,37 @@ export default function App() {
   const [activeStores, setActiveStores] = useState([])
   const [searched, setSearched] = useState(false)
 
-  async function handleSearch(term) {
+  function handleSearch(term) {
     if (!term.trim()) return
     setQuery(term)
     setLoading(true)
     setSearched(true)
     setResults([])
     setStoreStatus({})
+    setActiveStores([])
 
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`)
-      const data = await res.json()
-      setResults(data.results || [])
-      setStoreStatus(data.storeStatus || {})
-      setActiveStores([]) // reset filtros
-    } catch {
-      setResults([])
-    } finally {
+    const source = new EventSource(`/api/search?q=${encodeURIComponent(term)}`)
+
+    source.onmessage = (e) => {
+      const data = JSON.parse(e.data)
+      if (data.type === 'store' && data.results.length > 0) {
+        setResults(prev =>
+          [...prev, ...data.results].sort((a, b) => a.price - b.price)
+        )
+        setStoreStatus(prev => ({ ...prev, [data.store]: data.status }))
+      } else if (data.type === 'store') {
+        setStoreStatus(prev => ({ ...prev, [data.store]: data.status }))
+      } else if (data.type === 'done') {
+        setResults(data.results || [])
+        setStoreStatus(data.storeStatus || {})
+        setLoading(false)
+        source.close()
+      }
+    }
+
+    source.onerror = () => {
       setLoading(false)
+      source.close()
     }
   }
 
@@ -69,7 +82,7 @@ export default function App() {
         </div>
 
         {/* Estado de tiendas */}
-        {searched && !loading && Object.keys(storeStatus).length > 0 && (
+        {searched && Object.keys(storeStatus).length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
             {Object.entries(storeStatus).map(([store, status]) => (
               <span

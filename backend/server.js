@@ -23,54 +23,61 @@ const SCRAPERS = [
   { key: 'maicao',       fn: scrapeMaicao },
 ]
 
+// Ruta de streaming (SSE) — manda resultados tienda por tienda
 app.get('/api/search', async (req, res) => {
   const query = (req.query.q || '').trim()
   if (!query) return res.status(400).json({ error: 'Parámetro q requerido' })
 
-  // Revisar caché
+  // Caché: responder de inmediato con JSON normal
   const cached = getCache(query)
   if (cached) {
     console.log(`[cache hit] ${query}`)
-    return res.json(cached)
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.write(`data: ${JSON.stringify({ type: 'done', ...cached })}\n\n`)
+    return res.end()
   }
 
   console.log(`[search] ${query}`)
 
+  // Configurar SSE
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no') // desactiva buffer de nginx
+
   const storeStatus = {}
   const allResults = []
 
-  // Ejecutar scrapers de forma secuencial (1 a la vez) para no sobrecargar RAM
-  const CONCURRENCY = 1
-  let index = 0
-  const mutex = []
-
-  async function runNext() {
-    while (index < SCRAPERS.length) {
-      const { key, fn } = SCRAPERS[index++]
-      try {
-        const results = await Promise.race([
-          fn(query),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 45000)
-          ),
-        ])
-        allResults.push(...results)
-        storeStatus[key] = 'ok'
-      } catch (err) {
-        console.error(`[${key}] error:`, err.message)
-        storeStatus[key] = err.message === 'timeout' ? 'timeout' : 'error'
-      }
+  // Ejecutar scrapers de forma secuencial para no sobrecargar RAM
+  for (const { key, fn } of SCRAPERS) {
+    try {
+      const results = await Promise.race([
+        fn(query),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 45000)
+        ),
+      ])
+      allResults.push(...results)
+      storeStatus[key] = 'ok'
+      // Mandar resultados de esta tienda al frontend
+      res.write(`data: ${JSON.stringify({ type: 'store', store: key, results, status: 'ok' })}\n\n`)
+    } catch (err) {
+      console.error(`[${key}] error:`, err.message)
+      storeStatus[key] = err.message === 'timeout' ? 'timeout' : 'error'
+      res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: [], status: storeStatus[key] })}\n\n`)
     }
   }
 
-  await Promise.all(Array.from({ length: CONCURRENCY }, runNext))
-
-  // Ordenar por precio ascendente
+  // Ordenar y guardar en caché
   allResults.sort((a, b) => a.price - b.price)
-
   const response = { query, results: allResults, storeStatus }
   setCache(query, response)
-  res.json(response)
+
+  // Señal de fin
+  res.write(`data: ${JSON.stringify({ type: 'done', ...response })}\n\n`)
+  res.end()
 })
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }))
