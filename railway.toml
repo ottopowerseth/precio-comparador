@@ -1,8 +1,6 @@
 [build]
-builder = "nixpacks"
-buildCommand = "cd backend && npm install"
+dockerfilePath = "backend/Dockerfile"
 
 [deploy]
-startCommand = "cd backend && node server.js"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
