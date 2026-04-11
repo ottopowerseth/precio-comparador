@@ -19,7 +19,10 @@ export async function scrapeLaMundial(query) {
       return Array.from(items).slice(0, 10).map(el => {
         const name = el.querySelector('.productitem--title, [class*="productitem__title"], [class*="title"] a')?.innerText?.trim() || ''
         const priceText = el.querySelector('.productitem__price, .price')?.innerText?.trim() || '0'
-        const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0
+        // Tomar el ÚLTIMO precio (precio actual/con descuento cuando hay precio original)
+        const allMatches = [...priceText.matchAll(/\$([\d]{1,3}(?:\.[\d]{3})*)/g)]
+        const lastMatch = allMatches[allMatches.length - 1]
+        const price = lastMatch ? parseInt(lastMatch[1].replace(/\./g, '')) : 0
         const imageUrl = el.querySelector('img')?.src || ''
         const link = el.querySelector('a[href*="/products/"]')?.href || ''
         return {
@@ -28,7 +31,7 @@ export async function scrapeLaMundial(query) {
           priceFormatted: `$${price.toLocaleString('es-CL')}`,
           imageUrl, productUrl: link, available: true,
         }
-      }).filter(p => p.productName && p.price > 0)
+      }).filter(p => p.productName && p.price > 0 && p.price < 500000)
     })
   } finally {
     await page.close()
