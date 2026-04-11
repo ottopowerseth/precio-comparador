@@ -9,6 +9,7 @@ import { scrapeLiquimax } from './scrapers/liquimax.js'
 import { scrapePreunic } from './scrapers/preunic.js'
 import { scrapeMaicao } from './scrapers/maicao.js'
 import { scrapeEspol } from './scrapers/espol.js'
+import { scrapeTrimaico } from './scrapers/trimaico.js'
 
 const app = express()
 app.use(cors())
@@ -21,6 +22,7 @@ const SCRAPERS = [
   { key: 'preunic',      fn: scrapePreunic },
   { key: 'espol',        fn: scrapeEspol },
   { key: 'maicao',       fn: scrapeMaicao },
+  { key: 'trimaico',     fn: scrapeTrimaico },
 ]
 
 // Ruta de streaming (SSE) — manda resultados tienda por tienda
