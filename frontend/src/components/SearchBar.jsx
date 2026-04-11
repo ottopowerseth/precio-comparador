@@ -166,9 +166,17 @@ export default function SearchBar({ onSearch, loading }) {
             onChange={handleChange}
             onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
             placeholder='Busca por producto, marca o categoría...'
-            className="w-full border-2 border-blue-200 rounded-l-xl px-5 py-4 text-base focus:outline-none focus:border-blue-500"
+            className="w-full border-2 border-blue-200 rounded-l-xl px-5 py-4 pr-10 text-base focus:outline-none focus:border-blue-500"
             disabled={loading}
           />
+          {value && (
+            <button type="button" onClick={() => { setValue(''); setSuggestions([]); setShowSuggestions(false) }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
           {showSuggestions && (
             <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
               {suggestions.map(s => (

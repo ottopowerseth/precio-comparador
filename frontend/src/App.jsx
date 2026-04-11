@@ -76,6 +76,7 @@ export default function App() {
   const [sortOrder, setSortOrder] = useState('asc')
   const [searched, setSearched] = useState(false)
   const [historyProduct, setHistoryProduct] = useState(null)
+  const [activeCategory, setActiveCategory] = useState(null)
 
   const [activeStores, setActiveStores] = useState([])
   const [activeBrands, setActiveBrands] = useState([])
@@ -86,9 +87,10 @@ export default function App() {
     setActiveStores([]); setActiveBrands([]); setActiveSizes([]); setActiveTypes([])
   }
 
-  function handleSearch(term) {
+  function handleSearch(term, category = null) {
     if (!term.trim()) return
     setQuery(term); setLoading(true); setSearched(true)
+    setActiveCategory(category)
     setResults([]); setStoreStatus({}); resetFilters()
 
     const source = new EventSource(`/api/search?q=${encodeURIComponent(term)}`)
@@ -141,8 +143,12 @@ export default function App() {
         {/* Categorías rápidas */}
         <div className="flex flex-wrap gap-2 mt-3">
           {CATEGORIES.map(cat => (
-            <button key={cat} onClick={() => handleSearch(cat)}
-              className="px-3 py-1 bg-white border border-blue-300 text-blue-700 rounded-full text-sm hover:bg-blue-50 transition">
+            <button key={cat} onClick={() => handleSearch(cat, cat)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border transition ${
+                activeCategory === cat
+                  ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                  : 'bg-white border-blue-300 text-blue-700 hover:bg-blue-50'
+              }`}>
               {cat}
             </button>
           ))}
