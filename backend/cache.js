@@ -1,4 +1,4 @@
-const TTL_MS = 60 * 60 * 1000 // 1 hora
+const TTL_MS = 30 * 60 * 1000 // 30 minutos
 
 const store = new Map()
 
@@ -14,6 +14,8 @@ export function getCache(query) {
 }
 
 export function setCache(query, results) {
+  // No cachear búsquedas sin resultados
+  if (!results || results.results?.length === 0) return
   const key = query.toLowerCase().trim()
   store.set(key, { timestamp: Date.now(), results })
 }
