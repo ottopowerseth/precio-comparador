@@ -8,7 +8,7 @@ export async function scrapeLaMundial(query) {
   })
 
   try {
-    await page.goto(`https://www.perfumerialamundial.cl/search?q=${encodeURIComponent(query)}`, {
+    await page.goto(`https://perfumerialamundial.cl/search?type=product&q=${encodeURIComponent(query)}*`, {
       waitUntil: 'domcontentloaded',
       timeout: 15000,
     })
