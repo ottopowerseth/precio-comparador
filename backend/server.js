@@ -171,6 +171,22 @@ app.get('/api/search', async (req, res) => {
   res.end()
 })
 
+// Lookup de código de barra vía Open Food Facts (gratis)
+app.get('/api/barcode/:code', async (req, res) => {
+  const { code } = req.params
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`)
+    const data = await r.json()
+    if (data.status === 1) {
+      const name = data.product.product_name_es || data.product.product_name || ''
+      return res.json({ found: true, name: name || code })
+    }
+    res.json({ found: false, name: code })
+  } catch {
+    res.json({ found: false, name: code })
+  }
+})
+
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }))
 
 const PORT = process.env.PORT || 3005
