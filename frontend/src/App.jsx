@@ -116,7 +116,7 @@ export default function App() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-brand text-white py-4 px-4 shadow">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-xl font-bold">Comparador de Precios Chile</h1>
+          <h1 className="text-xl font-bold">Comparador De Precios Da-Ta By Otto</h1>
           <p className="text-white/70 text-xs mt-0.5">Higiene y belleza en un solo lugar</p>
         </div>
       </header>
