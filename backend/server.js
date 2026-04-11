@@ -16,7 +16,7 @@ app.use(cors())
 app.use(express.json())
 
 const SCRAPERS = [
-  { key: 'mercadolibre', fn: scrapeMercadoLibre },
+  // { key: 'mercadolibre', fn: scrapeMercadoLibre },
   { key: 'lamundial',    fn: scrapeLaMundial },
   { key: 'liquimax',     fn: scrapeLiquimax },
   { key: 'preunic',      fn: scrapePreunic },
