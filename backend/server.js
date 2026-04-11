@@ -15,6 +15,35 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// Extrae el tamaño del nombre (ej: "400ml", "2L", "100g")
+function extractSize(name) {
+  const m = name.match(/\b(\d+[\.,]?\d*)\s*(ml|l|g|kg|gr|cc|oz)\b/i)
+  return m ? `${m[1].replace(',', '.')}${m[2].toLowerCase()}` : ''
+}
+
+// Normaliza el nombre quitando puntuación y espacios extra
+function normalizeName(name) {
+  return name
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Deduplica resultados de una tienda: mismo nombre+tamaño = duplicado
+function deduplicateStore(results) {
+  const seen = new Set()
+  return results.filter(p => {
+    const size = extractSize(p.productName)
+    const name = normalizeName(p.productName)
+    const key = `${name}|${size}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 const SCRAPERS = [
   // { key: 'mercadolibre', fn: scrapeMercadoLibre },
   { key: 'lamundial',    fn: scrapeLaMundial },
@@ -61,10 +90,11 @@ app.get('/api/search', async (req, res) => {
           setTimeout(() => reject(new Error('timeout')), 45000)
         ),
       ])
-      allResults.push(...results)
+      const unique = deduplicateStore(results)
+      allResults.push(...unique)
       storeStatus[key] = 'ok'
       // Mandar resultados de esta tienda al frontend
-      res.write(`data: ${JSON.stringify({ type: 'store', store: key, results, status: 'ok' })}\n\n`)
+      res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: unique, status: 'ok' })}\n\n`)
     } catch (err) {
       console.error(`[${key}] error:`, err.message)
       storeStatus[key] = err.message === 'timeout' ? 'timeout' : 'error'
