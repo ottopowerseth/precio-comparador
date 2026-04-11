@@ -166,7 +166,7 @@ export default function SearchBar({ onSearch, loading }) {
             onChange={handleChange}
             onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
             placeholder='Busca por producto, marca o categoría...'
-            className="w-full border-2 border-blue-200 rounded-l-xl px-5 py-4 pr-10 text-base focus:outline-none focus:border-blue-500"
+            className="w-full border-2 border-brand-border rounded-l-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-brand"
             disabled={loading}
           />
           {value && (
@@ -191,7 +191,7 @@ export default function SearchBar({ onSearch, loading }) {
 
         {/* Código de barra */}
         <button type="button" onClick={() => setShowBarcodeModal(true)} title="Buscar por código de barra"
-          className="bg-white border-y-2 border-blue-200 px-4 hover:bg-blue-50 transition text-gray-500 hover:text-blue-700">
+          className="bg-white border-y-2 border-brand-border px-4 hover:bg-brand-light transition text-gray-500 hover:text-brand">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h1v12H4zm3 0h1v12H7zm3 0h2v12h-2zm4 0h1v12h-1zm3 0h2v12h-2z" />
           </svg>
@@ -199,9 +199,9 @@ export default function SearchBar({ onSearch, loading }) {
 
         {/* Búsqueda por imagen */}
         <label title="Identificar producto por foto"
-          className={`bg-white border-y-2 border-r-2 border-blue-200 px-4 hover:bg-blue-50 transition text-gray-500 hover:text-blue-700 flex items-center cursor-pointer ${ocrLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+          className={`bg-white border-y-2 border-r-2 border-brand-border px-4 hover:bg-brand-light transition text-gray-500 hover:text-brand flex items-center cursor-pointer ${ocrLoading ? 'opacity-60 pointer-events-none' : ''}`}>
           {ocrLoading ? (
-            <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg className="animate-spin h-5 w-5 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
             </svg>
@@ -215,7 +215,7 @@ export default function SearchBar({ onSearch, loading }) {
         </label>
 
         <button type="submit" disabled={loading || !value.trim()}
-          className="bg-blue-800 text-white px-8 py-4 rounded-r-xl text-base font-semibold hover:bg-blue-700 disabled:opacity-50 transition whitespace-nowrap">
+          className="bg-brand text-white px-6 py-2.5 rounded-r-xl text-sm font-semibold hover:bg-brand-dark disabled:opacity-50 transition whitespace-nowrap">
           {loading ? 'Buscando...' : 'Buscar'}
         </button>
       </form>
@@ -230,7 +230,7 @@ export default function SearchBar({ onSearch, loading }) {
             {!cameraActive && (
               <>
                 <button onClick={startCamera}
-                  className="w-full py-3 mb-3 bg-blue-800 text-white rounded-xl font-medium hover:bg-blue-700 flex items-center justify-center gap-2">
+                  className="w-full py-3 mb-3 bg-brand text-white rounded-xl font-medium hover:bg-brand-dark flex items-center justify-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                   </svg>
@@ -245,9 +245,9 @@ export default function SearchBar({ onSearch, loading }) {
                   <input type="text" value={barcodeText} onChange={e => setBarcodeText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && barcodeText && lookupBarcode(barcodeText)}
                     placeholder="Ej: 7501234567890"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
                   <button onClick={() => barcodeText && lookupBarcode(barcodeText)}
-                    className="px-4 py-2 bg-blue-800 text-white rounded-lg text-sm hover:bg-blue-700">
+                    className="px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark">
                     Buscar
                   </button>
                 </div>

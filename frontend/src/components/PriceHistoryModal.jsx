@@ -54,8 +54,8 @@ function PriceChart({ entries }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
       <defs>
         <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#2563eb" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#2563eb" stopOpacity="0.02" />
+          <stop offset="0%"   stopColor="#ff8674" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#ff8674" stopOpacity="0.02" />
         </linearGradient>
       </defs>
 
@@ -68,11 +68,11 @@ function PriceChart({ entries }) {
         stroke="#22c55e" strokeWidth="1" strokeDasharray="4 3" opacity="0.5" />
 
       {/* Línea principal */}
-      <polyline points={polyline} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round" />
+      <polyline points={polyline} fill="none" stroke="#ff8674" strokeWidth="2.5" strokeLinejoin="round" />
 
       {/* Puntos */}
       {points.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="3.5" fill="white" stroke="#2563eb" strokeWidth="2" />
+        <circle key={i} cx={x} cy={y} r="3.5" fill="white" stroke="#ff8674" strokeWidth="2" />
       ))}
 
       {/* Punto mínimo (verde) */}
@@ -132,7 +132,7 @@ export default function PriceHistoryModal({ product, onClose }) {
         {/* Cabecera */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 pr-4">
-            <span className="text-xs font-semibold text-blue-600 uppercase">{product.store}</span>
+            <span className="text-xs font-semibold text-brand uppercase">{product.store}</span>
             <h3 className="text-base font-bold text-gray-800 mt-0.5 line-clamp-2">{product.productName}</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
@@ -147,7 +147,7 @@ export default function PriceHistoryModal({ product, onClose }) {
               <div className="grid grid-cols-3 gap-3 mb-5">
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-500 mb-1">Precio actual</p>
-                  <p className="text-lg font-bold text-blue-700">${latest?.price.toLocaleString('es-CL')}</p>
+                  <p className="text-lg font-bold text-brand">${latest?.price.toLocaleString('es-CL')}</p>
                 </div>
                 <div className="bg-green-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-500 mb-1">Mínimo histórico</p>

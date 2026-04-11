@@ -24,8 +24,8 @@ function Section({ label, items, active, onToggle }) {
           {items.map(item => (
             <label key={item} className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" checked={active.includes(item)} onChange={() => onToggle(item)}
-                className="accent-blue-700 w-3.5 h-3.5 flex-shrink-0" />
-              <span className={`text-xs leading-tight group-hover:text-blue-700 transition ${active.includes(item) ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
+                className="accent-brand w-3.5 h-3.5 flex-shrink-0" />
+              <span className={`text-xs leading-tight group-hover:text-brand transition ${active.includes(item) ? 'text-brand font-medium' : 'text-gray-600'}`}>
                 {item}
               </span>
             </label>
@@ -54,7 +54,7 @@ export default function FilterBar({
         <div className="mb-3 pb-3 border-b border-gray-100">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1.5">Ordenar</p>
           <select value={sortOrder} onChange={e => onSortChange(e.target.value)}
-            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white">
             <option value="asc">Menor precio</option>
             <option value="desc">Mayor precio</option>
           </select>
@@ -69,7 +69,7 @@ export default function FilterBar({
             activeBrands.forEach(onToggleBrand)
             activeSizes.forEach(onToggleSize)
             activeTypes.forEach(onToggleType)
-          }} className="w-full text-xs text-blue-600 hover:text-blue-800 mb-3 text-left">
+          }} className="w-full text-xs text-brand hover:text-brand-dark mb-3 text-left">
             Limpiar filtros
           </button>
         )}

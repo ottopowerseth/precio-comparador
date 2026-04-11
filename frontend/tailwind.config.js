@@ -4,10 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
-          blue: '#1E40AF',
-          green: '#16A34A',
-        }
+        brand: '#ff8674',
+        'brand-dark': '#e86a58',
+        'brand-light': '#fff0ed',
+        'brand-border': '#ffb8ae',
       }
     },
   },

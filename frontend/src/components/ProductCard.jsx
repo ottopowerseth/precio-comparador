@@ -49,7 +49,7 @@ export default function ProductCard({ product, isBest, onHistory }) {
           {product.store}
         </span>
         <p className="mt-1 text-sm text-gray-800 font-medium line-clamp-2">{product.productName}</p>
-        <p className={`text-xl font-bold mt-1 ${isBest ? 'text-green-600' : 'text-blue-800'}`}>
+        <p className={`text-xl font-bold mt-1 ${isBest ? 'text-green-600' : 'text-brand'}`}>
           {product.priceFormatted}
         </p>
       </div>
@@ -57,11 +57,11 @@ export default function ProductCard({ product, isBest, onHistory }) {
       {/* Botones */}
       <div className="flex flex-col gap-2 flex-shrink-0 self-center">
         <a href={product.productUrl} target="_blank" rel="noopener noreferrer"
-          className="bg-blue-800 text-white text-xs px-3 py-2 rounded-lg hover:bg-blue-700 transition text-center">
+          className="bg-brand text-white text-xs px-3 py-2 rounded-lg hover:bg-brand-dark transition text-center">
           Ver oferta
         </a>
         <button onClick={() => onHistory(product)}
-          className="flex items-center justify-center gap-1 border border-gray-300 text-gray-600 text-xs px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-blue-400 hover:text-blue-700 transition">
+          className="flex items-center justify-center gap-1 border border-gray-300 text-gray-600 text-xs px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-brand hover:text-brand transition">
           <HistoryIcon />
           Historial
         </button>
