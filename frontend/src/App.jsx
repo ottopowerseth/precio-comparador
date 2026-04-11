@@ -30,26 +30,42 @@ function detectType(name) {
   return null
 }
 
-function detectGender(name) {
-  const n = name.toLowerCase()
-  if (/\b(hombre|men|caballero|him|for him|male|masculin)\b|lady speed stick/.test(n) === false &&
-      /\b(axe|old spice)\b/.test(n)) return 'Hombre'
-  if (/\b(mujer|dama|lady|woman|her|for her|female|ella|women)\b/.test(n)) return 'Mujer'
-  if (/\b(hombre|men|caballero|him|for him|male|masculin)\b/.test(n)) return 'Hombre'
-  return 'Unisex'
+function detectSize(name) {
+  const m = name.match(/\b(\d+(?:[.,]\d+)?)\s*(ml|l|g|kg|gr|cc|oz)\b/i)
+  if (!m) return null
+  const num = parseFloat(m[1].replace(',', '.'))
+  const unit = m[2].toLowerCase()
+  // Normalizar: 1L → 1000ml, 1kg → 1000g
+  if (unit === 'l')  return `${num * 1000} ml`
+  if (unit === 'kg') return `${num * 1000} g`
+  if (unit === 'cc') return `${num} ml`
+  if (unit === 'gr') return `${num} g`
+  return `${num} ${unit}`
 }
 
 function enrichProduct(p) {
   return {
     ...p,
-    brand:  detectBrand(p.productName),
-    type:   detectType(p.productName),
-    gender: detectGender(p.productName),
+    brand: detectBrand(p.productName),
+    type:  detectType(p.productName),
+    size:  detectSize(p.productName),
   }
 }
 
 function toggle(arr, item) {
   return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item]
+}
+
+function sortSizes(sizes) {
+  return [...sizes].sort((a, b) => {
+    const parse = s => {
+      const [n, u] = s.split(' ')
+      const num = parseFloat(n)
+      // g < ml roughly — sort ml and g separately, ml first
+      return u === 'ml' ? num : num + 100000
+    }
+    return parse(a) - parse(b)
+  })
 }
 
 export default function App() {
@@ -59,15 +75,15 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [sortOrder, setSortOrder] = useState('asc')
   const [searched, setSearched] = useState(false)
-
   const [historyProduct, setHistoryProduct] = useState(null)
-  const [activeStores,  setActiveStores]  = useState([])
-  const [activeBrands,  setActiveBrands]  = useState([])
-  const [activeGenders, setActiveGenders] = useState([])
-  const [activeTypes,   setActiveTypes]   = useState([])
+
+  const [activeStores, setActiveStores] = useState([])
+  const [activeBrands, setActiveBrands] = useState([])
+  const [activeSizes,  setActiveSizes]  = useState([])
+  const [activeTypes,  setActiveTypes]  = useState([])
 
   function resetFilters() {
-    setActiveStores([]); setActiveBrands([]); setActiveGenders([]); setActiveTypes([])
+    setActiveStores([]); setActiveBrands([]); setActiveSizes([]); setActiveTypes([])
   }
 
   function handleSearch(term) {
@@ -97,36 +113,33 @@ export default function App() {
     source.onerror = () => { setLoading(false); source.close() }
   }
 
-  // Valores únicos para filtros (ordenados)
-  const stores  = [...new Set(results.map(r => r.store))].sort()
-  const brands  = [...new Set(results.map(r => r.brand).filter(Boolean))].sort()
-  const types   = [...new Set(results.map(r => r.type).filter(Boolean))].sort()
-  const genders = [...new Set(results.map(r => r.gender).filter(Boolean))].sort()
+  const stores = [...new Set(results.map(r => r.store))].sort()
+  const brands = [...new Set(results.map(r => r.brand).filter(Boolean))].sort()
+  const types  = [...new Set(results.map(r => r.type).filter(Boolean))].sort()
+  const sizes  = sortSizes([...new Set(results.map(r => r.size).filter(Boolean))])
 
   const filtered = results
-    .filter(r => activeStores.length  === 0 || activeStores.includes(r.store))
-    .filter(r => activeBrands.length  === 0 || activeBrands.includes(r.brand))
-    .filter(r => activeGenders.length === 0 || activeGenders.includes(r.gender))
-    .filter(r => activeTypes.length   === 0 || activeTypes.includes(r.type))
+    .filter(r => activeStores.length === 0 || activeStores.includes(r.store))
+    .filter(r => activeBrands.length === 0 || activeBrands.includes(r.brand))
+    .filter(r => activeSizes.length  === 0 || activeSizes.includes(r.size))
+    .filter(r => activeTypes.length  === 0 || activeTypes.includes(r.type))
     .sort((a, b) => sortOrder === 'asc' ? a.price - b.price : b.price - a.price)
-
-  const hasFilters = results.length > 0
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-blue-800 text-white py-6 px-4 shadow">
-        <div className="max-w-5xl mx-auto">
+      <header className="bg-blue-800 text-white py-5 px-4 shadow">
+        <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold">Comparador de Precios Chile</h1>
-          <p className="text-blue-200 text-sm mt-1">Higiene y belleza en un solo lugar</p>
+          <p className="text-blue-200 text-sm mt-0.5">Higiene y belleza en un solo lugar</p>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* Barra de búsqueda prominente */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Barra de búsqueda */}
         <SearchBar onSearch={handleSearch} loading={loading} />
 
         {/* Categorías rápidas */}
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-3">
           {CATEGORIES.map(cat => (
             <button key={cat} onClick={() => handleSearch(cat)}
               className="px-3 py-1 bg-white border border-blue-300 text-blue-700 rounded-full text-sm hover:bg-blue-50 transition">
@@ -135,38 +148,40 @@ export default function App() {
           ))}
         </div>
 
-        {/* Estado de tiendas (mientras busca) */}
+        {/* Estado de tiendas */}
         {searched && Object.keys(storeStatus).length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {Object.entries(storeStatus).map(([store, status]) => (
-              <span key={store}
-                className={`text-xs px-2 py-1 rounded-full ${
-                  status === 'ok' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                }`}>
+              <span key={store} className={`text-xs px-2 py-0.5 rounded-full ${
+                status === 'ok' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+              }`}>
                 {store}: {status}
               </span>
             ))}
           </div>
         )}
 
-        {/* Filtros */}
-        {hasFilters && (
+        {/* Layout: sidebar izquierda + resultados */}
+        <div className="flex gap-5 mt-5">
+          {/* Sidebar filtros */}
           <FilterBar
-            stores={stores}   activeStores={activeStores}   onToggleStore={s  => setActiveStores(toggle(activeStores, s))}
-            brands={brands}   activeBrands={activeBrands}   onToggleBrand={b  => setActiveBrands(toggle(activeBrands, b))}
-            genders={genders} activeGenders={activeGenders} onToggleGender={g => setActiveGenders(toggle(activeGenders, g))}
-            types={types}     activeTypes={activeTypes}     onToggleType={t   => setActiveTypes(toggle(activeTypes, t))}
+            stores={stores}   activeStores={activeStores}  onToggleStore={s => setActiveStores(toggle(activeStores, s))}
+            brands={brands}   activeBrands={activeBrands}  onToggleBrand={b => setActiveBrands(toggle(activeBrands, b))}
+            sizes={sizes}     activeSizes={activeSizes}    onToggleSize={z  => setActiveSizes(toggle(activeSizes, z))}
+            types={types}     activeTypes={activeTypes}    onToggleType={t  => setActiveTypes(toggle(activeTypes, t))}
             sortOrder={sortOrder} onSortChange={setSortOrder}
             totalResults={filtered.length}
+            hasResults={results.length > 0}
           />
-        )}
 
-        {/* Resultados */}
-        <ResultsTable results={filtered} loading={loading} searched={searched} query={query}
-          onHistory={setHistoryProduct} />
-      </main>
+          {/* Resultados */}
+          <div className="flex-1 min-w-0">
+            <ResultsTable results={filtered} loading={loading} searched={searched} query={query}
+              onHistory={setHistoryProduct} />
+          </div>
+        </div>
+      </div>
 
-      {/* Modal historial */}
       {historyProduct && (
         <PriceHistoryModal product={historyProduct} onClose={() => setHistoryProduct(null)} />
       )}
