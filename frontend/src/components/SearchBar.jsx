@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createWorker } from 'tesseract.js'
 
 const SUGGESTIONS = [
   'Shampoo', 'Tinturas', 'Desodorantes', 'Pastas de dientes', 'Jabones',
@@ -17,6 +18,7 @@ export default function SearchBar({ onSearch, loading }) {
   const [barcodeText, setBarcodeText] = useState('')
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError, setCameraError] = useState('')
+  const [ocrLoading, setOcrLoading] = useState(false)
   const containerRef = useRef(null)
   const videoRef = useRef(null)
   const scanIntervalRef = useRef(null)
@@ -98,16 +100,48 @@ export default function SearchBar({ onSearch, loading }) {
     if (!file) return
     e.target.value = ''
 
+    const imgUrl = URL.createObjectURL(file)
+    const img = document.createElement('img')
+    img.src = imgUrl
+    await new Promise(r => { img.onload = r })
+
+    // 1. Intentar leer código de barra
     if ('BarcodeDetector' in window) {
-      const img = document.createElement('img')
-      img.src = URL.createObjectURL(file)
-      await new Promise(r => { img.onload = r })
       const detector = new BarcodeDetector()
       const barcodes = await detector.detect(img).catch(() => [])
       if (barcodes.length > 0) { lookupBarcode(barcodes[0].rawValue); return }
     }
-    // Sin barcode: abrir Google Lens
-    window.open('https://lens.google.com/', '_blank')
+
+    // 2. OCR con Tesseract para identificar el producto
+    setOcrLoading(true)
+    try {
+      const worker = await createWorker('spa+eng')
+      const { data: { text } } = await worker.recognize(file)
+      await worker.terminate()
+
+      // Extraer marca conocida del texto reconocido
+      const BRANDS = ['Head & Shoulders','Pantene','Elvive','Dove','Fructis','Sedal','Familand',
+        'Ilicit','Nutrisse','Excellence','Issue','Axe','Lady Speed Stick','Speed Stick',
+        'Nivea','Rexona','Old Spice','Colgate','Pepsodent','Aquafresh','Simonds','Protex']
+
+      const lower = text.toLowerCase()
+      const found = BRANDS.find(b => lower.includes(b.toLowerCase()))
+
+      if (found) {
+        setValue(found)
+        onSearch(found)
+      } else {
+        // Tomar las primeras palabras con sentido como query
+        const clean = text.replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9\s]/g, ' ')
+          .replace(/\s+/g, ' ').trim().split(' ').slice(0, 4).join(' ')
+        if (clean.length > 2) { setValue(clean); onSearch(clean) }
+        else window.open('https://lens.google.com/', '_blank')
+      }
+    } catch {
+      window.open('https://lens.google.com/', '_blank')
+    } finally {
+      setOcrLoading(false)
+    }
   }
 
   function closeModal() {
@@ -156,13 +190,20 @@ export default function SearchBar({ onSearch, loading }) {
         </button>
 
         {/* Búsqueda por imagen */}
-        <label title="Buscar por imagen o código de barra en foto"
-          className="bg-white border-y-2 border-r-2 border-blue-200 px-4 hover:bg-blue-50 transition text-gray-500 hover:text-blue-700 flex items-center cursor-pointer">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <input type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+        <label title="Identificar producto por foto"
+          className={`bg-white border-y-2 border-r-2 border-blue-200 px-4 hover:bg-blue-50 transition text-gray-500 hover:text-blue-700 flex items-center cursor-pointer ${ocrLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {ocrLoading ? (
+            <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          )}
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageFile} />
         </label>
 
         <button type="submit" disabled={loading || !value.trim()}
