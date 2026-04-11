@@ -104,6 +104,11 @@ function deduplicateStore(results) {
   })
 }
 
+// Búsquedas adicionales por categoría para productos que no aparecen con el término genérico
+const CATEGORY_EXTRA_QUERIES = {
+  'tinturas': ['nutrisse cor intensa', 'ilicit'],
+}
+
 const SCRAPERS = [
   // { key: 'mercadolibre', fn: scrapeMercadoLibre },
   { key: 'lamundial',    fn: scrapeLaMundial },
@@ -160,6 +165,37 @@ app.get('/api/search', async (req, res) => {
       console.error(`[${key}] error:`, err.message)
       storeStatus[key] = err.message === 'timeout' ? 'timeout' : 'error'
       res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: [], status: storeStatus[key] })}\n\n`)
+    }
+  }
+
+  // Búsquedas suplementarias (ej: "nutrisse cor intensa" cuando buscan "tinturas")
+  const qNorm = normalizeName(query)
+  const extraQueries = Object.entries(CATEGORY_EXTRA_QUERIES)
+    .find(([cat]) => qNorm.includes(normalizeName(cat)))?.[1] || []
+
+  const seenKeys = new Set(allResults.map(r => `${r.store}|${normalizeName(r.productName)}`))
+
+  for (const extraQ of extraQueries) {
+    for (const { key, fn } of SCRAPERS) {
+      try {
+        const results = await Promise.race([
+          fn(extraQ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
+        ])
+        // Solo agregar productos nuevos (no duplicados)
+        const fresh = results.filter(p => {
+          const k = `${p.store}|${normalizeName(p.productName)}`
+          if (seenKeys.has(k)) return false
+          seenKeys.add(k)
+          return true
+        })
+        const unique = applyQueryFilter(query, deduplicateStore(fresh))
+        if (unique.length > 0) {
+          recordPrices(unique)
+          allResults.push(...unique)
+          res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: unique, status: 'ok' })}\n\n`)
+        }
+      } catch { /* ignorar errores en búsquedas extra */ }
     }
   }
 
