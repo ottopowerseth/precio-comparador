@@ -10,6 +10,7 @@ import { scrapePreunic } from './scrapers/preunic.js'
 import { scrapeMaicao } from './scrapers/maicao.js'
 import { scrapeEspol } from './scrapers/espol.js'
 import { scrapeTrimaico } from './scrapers/trimaico.js'
+import { recordPrices, getProductHistory } from './priceHistory.js'
 
 const app = express()
 app.use(cors())
@@ -150,6 +151,7 @@ app.get('/api/search', async (req, res) => {
         ),
       ])
       const unique = applyQueryFilter(query, deduplicateStore(results))
+      recordPrices(unique)          // guardar precios en historial
       allResults.push(...unique)
       storeStatus[key] = 'ok'
       // Mandar resultados de esta tienda al frontend
@@ -169,6 +171,15 @@ app.get('/api/search', async (req, res) => {
   // Señal de fin
   res.write(`data: ${JSON.stringify({ type: 'done', ...response })}\n\n`)
   res.end()
+})
+
+// Historial de precios
+app.get('/api/history', (req, res) => {
+  const { product, store } = req.query
+  if (!product || !store) return res.status(400).json({ error: 'Faltan parámetros' })
+  const data = getProductHistory(product, store)
+  if (!data) return res.json({ entries: [] })
+  res.json(data)
 })
 
 // Lookup de código de barra vía Open Food Facts (gratis)

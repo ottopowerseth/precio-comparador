@@ -2,6 +2,7 @@ import { useState } from 'react'
 import SearchBar from './components/SearchBar.jsx'
 import FilterBar from './components/FilterBar.jsx'
 import ResultsTable from './components/ResultsTable.jsx'
+import PriceHistoryModal from './components/PriceHistoryModal.jsx'
 
 const CATEGORIES = ['Shampoo', 'Tinturas', 'Desodorantes', 'Pastas de dientes', 'Jabones']
 
@@ -59,6 +60,7 @@ export default function App() {
   const [sortOrder, setSortOrder] = useState('asc')
   const [searched, setSearched] = useState(false)
 
+  const [historyProduct, setHistoryProduct] = useState(null)
   const [activeStores,  setActiveStores]  = useState([])
   const [activeBrands,  setActiveBrands]  = useState([])
   const [activeGenders, setActiveGenders] = useState([])
@@ -160,8 +162,14 @@ export default function App() {
         )}
 
         {/* Resultados */}
-        <ResultsTable results={filtered} loading={loading} searched={searched} query={query} />
+        <ResultsTable results={filtered} loading={loading} searched={searched} query={query}
+          onHistory={setHistoryProduct} />
       </main>
+
+      {/* Modal historial */}
+      {historyProduct && (
+        <PriceHistoryModal product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      )}
     </div>
   )
 }
