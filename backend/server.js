@@ -31,6 +31,65 @@ function normalizeName(name) {
     .trim()
 }
 
+// Filtros por categoría: marca → tamaños permitidos (null = todos los tamaños)
+const CATEGORY_FILTERS = {
+  shampoo: [
+    { brand: 'head & shoulders', sizes: ['180', '375'] },
+    { brand: 'head shoulders',   sizes: ['180', '375'] },
+    { brand: 'hs ',              sizes: ['180', '375'] },
+    { brand: 'pantene',          sizes: ['400'] },
+    { brand: 'elvive',           sizes: ['370', '680'] },
+    { brand: 'familand',         sizes: ['750'] },
+    { brand: 'dove',             sizes: null },
+    { brand: 'fructis',          sizes: null },
+    { brand: 'sedal',            sizes: null },
+  ],
+  tinturas: [
+    { brand: 'ilicit',           sizes: null },
+    { brand: 'nutrisse',         sizes: null },
+    { brand: 'cor intensa',      sizes: null },
+    { brand: 'excellence',       sizes: null },
+    { brand: 'issue',            sizes: null },
+  ],
+  desodorantes: [
+    { brand: 'axe',              sizes: null },
+    { brand: 'dove',             sizes: null },
+    { brand: 'lady speed stick', sizes: null },
+    { brand: 'speed stick',      sizes: null },
+    { brand: 'nivea',            sizes: null },
+    { brand: 'rexona',           sizes: null },
+    { brand: 'old spice',        sizes: null },
+  ],
+  'pastas de dientes': [
+    { brand: 'colgate',          sizes: null },
+    { brand: 'pepsodent',        sizes: null },
+    { brand: 'aquafresh',        sizes: null },
+  ],
+  jabones: [
+    { brand: 'simonds',          sizes: null },
+    { brand: 'dove',             sizes: null },
+    { brand: 'protex',           sizes: null },
+  ],
+}
+
+// Aplica filtro de categoría si la búsqueda coincide con una categoría definida
+function applyQueryFilter(query, results) {
+  const q = normalizeName(query)
+  const categoryKey = Object.keys(CATEGORY_FILTERS).find(k => q.includes(normalizeName(k)))
+  if (!categoryKey) return results
+
+  const allowed = CATEGORY_FILTERS[categoryKey]
+  return results.filter(p => {
+    const name = normalizeName(p.productName)
+    return allowed.some(({ brand, sizes }) => {
+      if (!name.includes(normalizeName(brand))) return false
+      if (!sizes) return true
+      // Verificar que el nombre contiene uno de los tamaños permitidos
+      return sizes.some(s => new RegExp(`\\b${s}\\s*(ml|l|g|gr|cc)`, 'i').test(p.productName))
+    })
+  })
+}
+
 // Deduplica resultados de una tienda: mismo nombre+tamaño = duplicado
 function deduplicateStore(results) {
   const seen = new Set()
@@ -90,7 +149,7 @@ app.get('/api/search', async (req, res) => {
           setTimeout(() => reject(new Error('timeout')), 45000)
         ),
       ])
-      const unique = deduplicateStore(results)
+      const unique = applyQueryFilter(query, deduplicateStore(results))
       allResults.push(...unique)
       storeStatus[key] = 'ok'
       // Mandar resultados de esta tienda al frontend
