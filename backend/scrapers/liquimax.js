@@ -31,11 +31,12 @@ export async function scrapeLiquimax(query) {
         )
         const name = nameEl?.innerText?.trim() || ''
 
-        // Precio: tomar el último $X.XXX del bloque de precios
-        const priceText = el.querySelector('[class*="product-prices"], [class*="price"]')?.innerText?.trim() || '0'
-        const allMatches = [...priceText.matchAll(/\$([\d]{1,3}(?:\.[\d]{3})*)/g)]
-        const lastMatch = allMatches[allMatches.length - 1]
-        const price = lastMatch ? parseInt(lastMatch[1].replace(/\./g, '')) : 0
+        // Precio real: usar data-initial-value del span .bootic-price (evita precios x 100ml)
+        const priceRaw = el.querySelector('.bootic-price')?.getAttribute('data-initial-value')
+          || el.querySelector('.bootic-price')?.innerText?.trim()
+          || '0'
+        const priceMatch = priceRaw.match(/\$([\d]{1,3}(?:\.[\d]{3})*)/)
+        const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, '')) : 0
 
         const imageUrl  = el.querySelector('img')?.src || ''
         const link      = links.find(a => a.href?.includes('/products/'))?.href || ''
