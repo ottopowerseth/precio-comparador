@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapeLaMundial(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -16,7 +17,7 @@ export async function scrapeLaMundial(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('.productgrid--item')
-      return Array.from(items).slice(0, 15).map(el => {
+      return Array.from(items).slice(0, 25).map(el => {
         const name = el.querySelector('.productitem--title, [class*="productitem__title"], [class*="title"] a')?.innerText?.trim() || ''
         const priceText = el.querySelector('.productitem__price, .price')?.innerText?.trim() || '0'
         // Tomar el ÚLTIMO precio (precio actual/con descuento cuando hay precio original)

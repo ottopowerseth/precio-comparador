@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapeTrimaico(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -38,7 +39,7 @@ export async function scrapeTrimaico(query) {
     if (!hasResults) return []
 
     return await page.evaluate(() => {
-      return Array.from(document.querySelectorAll('.product-grid-item')).slice(0, 15).map(el => {
+      return Array.from(document.querySelectorAll('.product-grid-item')).slice(0, 25).map(el => {
         const name = el.querySelector('.wd-entities-title, .product-title, h3, h2')?.innerText?.trim() || ''
         const priceText = el.querySelector('.price, .woocommerce-Price-amount, .amount')?.innerText?.trim() || ''
         // Tomar el último precio (precio con descuento si hay precio tachado)

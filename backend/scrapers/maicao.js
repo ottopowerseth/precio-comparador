@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapeMaicao(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -28,7 +29,7 @@ export async function scrapeMaicao(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('[class*="product-tile"], [class*="product-item"], [class*="item-template"]')
-      return Array.from(items).slice(0, 15).map(el => {
+      return Array.from(items).slice(0, 25).map(el => {
         const name = el.querySelector('[class*="name"], [class*="title"], h3, h2')?.innerText?.trim() || ''
         const priceText = el.querySelector('[class*="price"]')?.innerText?.trim() || '0'
         const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0

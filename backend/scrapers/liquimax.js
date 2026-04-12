@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapeLiquimax(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -21,7 +22,7 @@ export async function scrapeLiquimax(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('[class*="product-item"]')
-      return Array.from(items).slice(0, 15).map(el => {
+      return Array.from(items).slice(0, 25).map(el => {
         // Nombre: primer enlace a /products/ con texto suficiente
         const links = Array.from(el.querySelectorAll('a'))
         const nameEl = links.find(a =>

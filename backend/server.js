@@ -104,22 +104,46 @@ function deduplicateStore(results) {
   })
 }
 
+// Lista de marcas conocidas para detectar en el nombre del producto
+const KNOWN_BRANDS_NORM = [
+  'head shoulders', 'head & shoulders', 'pantene', 'elvive', 'familand',
+  'dove', 'fructis', 'sedal', 'ilicit', 'nutrisse', 'cor intensa',
+  'excellence', 'issue', 'axe', 'lady speed stick', 'speed stick',
+  'nivea', 'rexona', 'old spice', 'colgate', 'pepsodent', 'aquafresh',
+  'simonds', 'protex',
+]
+
+function detectBrandNorm(nameLower) {
+  return KNOWN_BRANDS_NORM.find(b => nameLower.includes(b)) || null
+}
+
+// Para categorías: un producto por marca+tamaño por tienda (evita múltiples variedades)
+function deduplicateBrandSize(results) {
+  const seen = new Set()
+  return results.filter(p => {
+    const name = normalizeName(p.productName)
+    const size = extractSize(p.productName) || 'nosize'
+    const brand = detectBrandNorm(name) || name.split(' ').slice(0, 2).join(' ')
+    const key = `${brand}|${p.store}|${size}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // Para categorías: buscar cada marca directamente en paralelo por tienda
 // así garantizamos encontrar todas las marcas aunque no salgan en búsqueda genérica
-const CATEGORY_BRAND_QUERIES = {
-  'shampoo': [
-    'head shoulders shampoo', 'pantene shampoo', 'elvive shampoo',
-    'familand shampoo', 'dove shampoo', 'sedal shampoo', 'fructis shampoo',
-  ],
-  'tinturas': [
-    'ilicit tintura', 'nutrisse tintura', 'cor intensa', 'excellence tintura', 'issue tintura',
-  ],
-  'desodorantes': [
-    'axe desodorante', 'rexona desodorante', 'speed stick',
-    'nivea desodorante', 'dove desodorante', 'old spice',
-  ],
-  'pastas de dientes': ['colgate pasta dental', 'pepsodent', 'aquafresh'],
-  'jabones': ['simonds jabon', 'dove jabon', 'protex jabon'],
+// Para categorías: búsqueda genérica devuelve las marcas principales.
+// Solo agregamos 1-2 queries extra para marcas que raramente aparecen en búsqueda genérica.
+// Mantener pocas queries para no sobrecargar el browser.
+// Extra queries por categoría: solo marcas que no aparecen en búsqueda genérica
+// Mínimas para no sobrecargar el browser (máx 3 por categoría)
+const CATEGORY_EXTRA_BRAND_QUERIES = {
+  'shampoo':           ['dove shampoo', 'pantene shampoo', 'familand shampoo'],
+  'tinturas':          ['ilicit tintura', 'nutrisse tintura'],
+  'desodorantes':      ['axe desodorante', 'rexona desodorante'],
+  'pastas de dientes': ['colgate', 'pepsodent'],
+  'jabones':           ['dove jabon', 'protex'],
 }
 
 const SCRAPERS = [
@@ -159,39 +183,38 @@ app.get('/api/search', async (req, res) => {
   const storeStatus = {}
   const allResults = []
 
-  // Detectar si la búsqueda es una categoría conocida para hacer búsquedas por marca
+  // Detectar si la búsqueda es una categoría conocida
   const qNorm = normalizeName(query)
-  const categoryKey = Object.keys(CATEGORY_BRAND_QUERIES).find(k => qNorm.includes(normalizeName(k)))
-  const brandQueries = categoryKey ? CATEGORY_BRAND_QUERIES[categoryKey] : null
+  const categoryKey = Object.keys(CATEGORY_EXTRA_BRAND_QUERIES).find(k => qNorm.includes(normalizeName(k)))
+  const extraBrandQueries = categoryKey ? CATEGORY_EXTRA_BRAND_QUERIES[categoryKey] : []
 
-  console.log(brandQueries ? `[category] ${categoryKey} → ${brandQueries.length} brand queries` : `[search] simple query`)
+  console.log(categoryKey ? `[category] ${categoryKey} → generic + ${extraBrandQueries.length} extra queries` : `[search] simple query`)
 
-  // Para categorías: cada tienda corre todas las marcas EN PARALELO (más rápido y completo)
   for (const { key, fn } of SCRAPERS) {
     try {
-      let rawResults
-      if (brandQueries) {
-        // Búsqueda por categoría: ejecutar cada marca SECUENCIAL (no paralelo) para evitar sobrecargar
-        const brandResults = []
-        for (const bq of brandQueries) {
+      // Siempre buscar con el query genérico
+      const rawResults = await Promise.race([
+        fn(query),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
+      ])
+
+      // Para categorías: agregar queries extra (solo 1-2) para marcas poco comunes
+      if (extraBrandQueries.length > 0) {
+        for (const bq of extraBrandQueries) {
           try {
-            const result = await Promise.race([
+            const extra = await Promise.race([
               fn(bq),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000))
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000))
             ])
-            if (result && result.length > 0) brandResults.push(...result)
+            if (extra?.length > 0) rawResults.push(...extra)
           } catch (e) {
-            console.error(`  [${key}] brand query "${bq}" failed:`, e.message)
+            console.error(`  [${key}] extra query "${bq}" failed:`, e.message)
           }
         }
-        rawResults = brandResults
-      } else {
-        rawResults = await Promise.race([
-          fn(query),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
-        ])
       }
-      const unique = applyQueryFilter(query, deduplicateStore(rawResults))
+
+      const dedupFn = categoryKey ? deduplicateBrandSize : deduplicateStore
+      const unique = applyQueryFilter(query, dedupFn(rawResults))
       recordPrices(unique)
       allResults.push(...unique)
       storeStatus[key] = 'ok'

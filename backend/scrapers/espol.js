@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapeEspol(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -18,7 +19,7 @@ export async function scrapeEspol(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('.search-item')
-      return Array.from(items).slice(0, 15).map(el => {
+      return Array.from(items).slice(0, 25).map(el => {
         const name = el.querySelector('.post-title h4, .post-title, h4, h3, h2')?.innerText?.trim() || ''
         const priceText = el.querySelector('.woocommerce-Price-amount, .post-product-price')?.innerText?.trim() || '0'
         // Precio en formato "$99,999.00" → convertir a int (quitar $, comas, decimales)

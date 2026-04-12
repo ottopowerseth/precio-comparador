@@ -1,6 +1,7 @@
 import { getBrowser } from '../browser.js'
 
 export async function scrapePreunic(query) {
+  
   const browser = await getBrowser()
   const page = await browser.newPage()
   await page.setExtraHTTPHeaders({
@@ -17,7 +18,7 @@ export async function scrapePreunic(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('.ais-Hits-item')
-      return Array.from(items).slice(0, 15).map(el => {
+      return Array.from(items).slice(0, 25).map(el => {
         const lines = el.innerText.split('\n').map(l => l.trim()).filter(Boolean)
         // Nombre: línea que no es precio ni porcentaje ni muy corta
         const name = lines.find(l => l.length > 10 && !l.startsWith('$') && !l.startsWith('-') && !/^\d+$/.test(l)) || ''
