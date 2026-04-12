@@ -46,15 +46,7 @@ function enrichProduct(p) {
   return { ...p, brand: detectBrand(p.productName), type: detectType(p.productName), size: detectSize(p.productName) }
 }
 
-// ─── Normalización avanzada de nombres ────────────────────────────────────────
-
-const _STOPWORDS = [
-  'pasta de dientes', 'crema dental', 'pasta dental',
-  'en barra', 'en spray', 'para cabello',
-  'shampoo', 'champu', 'desodorante', 'jabon',
-  'tintura', 'original', 'spray', 'barra',
-  'anticaries', 'grande', 'chico', 'mediano',
-]
+// ─── Agrupador por categoría de producto ──────────────────────────────────────
 
 const _BRAND_NORMS = [
   [/head\s*&\s*shoulders|head&shoulders/gi, 'head shoulders'],
@@ -74,96 +66,157 @@ const _KNOWN_BRANDS = [
   'simonds', 'protex', 'loreal',
 ].sort((a, b) => b.length - a.length)
 
-function _step1(name) {
+// Tipo por defecto para marcas monomorfas (cuando el nombre no indica el tipo)
+const _BRAND_DEFAULT_TYPE = {
+  'colgate':   'pasta dental',
+  'pepsodent': 'pasta dental',
+  'aquafresh': 'pasta dental',
+  'simonds':   'jabon',
+  'protex':    'jabon',
+}
+
+// Nombres de display para tipos canónicos
+const _TYPE_DISPLAY = {
+  'shampoo':        'Shampoo',
+  'acondicionador': 'Acondicionador',
+  'crema peinar':   'Crema de Peinar',
+  'spray':          'Spray',
+  'barra':          'Barra',
+  'jabon':          'Jabón',
+  'pasta dental':   'Pasta Dental',
+  'tintura':        'Tintura',
+  'desodorante':    'Desodorante',
+}
+
+// Nombres de display para marcas
+const _BRAND_DISPLAY = {
+  'head shoulders':  'Head & Shoulders',
+  'lady speed stick':'Lady Speed Stick',
+  'speed stick':     'Speed Stick',
+  'cor intensa':     'Cor Intensa',
+  'oldspice':        'Old Spice',
+  'loreal':          "L'Oréal",
+  'aquafresh':       'Aquafresh',
+  'pepsodent':       'Pepsodent',
+  'colgate':         'Colgate',
+  'pantene':         'Pantene',
+  'elvive':          'Elvive',
+  'familand':        'Familand',
+  'fructis':         'Fructis',
+  'sedal':           'Sedal',
+  'ilicit':          'Ilicit',
+  'nutrisse':        'Nutrisse',
+  'excellence':      'Excellence',
+  'issue':           'Issue',
+  'axe':             'Axe',
+  'nivea':           'Nivea',
+  'rexona':          'Rexona',
+  'dove':            'Dove',
+  'simonds':         'Simonds',
+  'protex':          'Protex',
+}
+
+// Diccionario de tipos de producto.
+// null  = variedad/aroma — ignorar, seguir buscando tipo real.
+// string = tipo canónico — agrupar por este valor.
+const _PRODUCT_TYPES_RAW = {
+  'pasta de dientes':  'pasta dental',
+  'crema para peinar': 'crema peinar',
+  'crema de peinar':   'crema peinar',
+  'celulas madre veg': null,
+  'rizos definidos':   null,
+  'luminous uv':       null,
+  'bomba argan':       null,
+  'bomba coco':        null,
+  'celulas madre':     null,
+  'acondicionador':    'acondicionador',
+  'crema dental':      'pasta dental',
+  'pasta dental':      'pasta dental',
+  'gel dental':        'pasta dental',
+  'pan de jabon':      'jabon',
+  'crema peinar':      'crema peinar',
+  'coloracion':        'tintura',
+  'desodorante':       null,   // genérico; spray/barra lo sobreescribe
+  'en barra':          'barra',
+  'aerosol':           'spray',
+  'shampoo':           'shampoo',
+  'champu':            'shampoo',
+  'tintura':           'tintura',
+  'tinte':             'tintura',
+  'jabon':             'jabon',
+  'spray':             'spray',
+  'barra':             'barra',
+  'acond':             'acondicionador',
+  'sh':                'shampoo',
+}
+
+// Normalizar claves (quitar tildes) y ordenar de más larga a más corta
+const _PRODUCT_TYPES = Object.entries(_PRODUCT_TYPES_RAW)
+  .map(([k, v]) => [k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), v])
+  .sort((a, b) => b[0].length - a[0].length)
+
+function _clean(name) {
   let n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   for (const [pat, rep] of _BRAND_NORMS) n = n.replace(pat, rep)
-  n = n.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
-  return n
+  return n.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
-function _removeStopwords(n) {
-  for (const sw of _STOPWORDS) {
-    const pattern = sw.replace(/\s+/g, '\\s+')
-    n = n.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
-  }
-  return n.replace(/\s+/g, ' ').trim()
-}
-
-function _extractBrand(n) {
-  for (const brand of _KNOWN_BRANDS) {
-    const pattern = brand.replace(/\s+/g, '\\s+')
-    if (new RegExp(`\\b${pattern}\\b`).test(n)) return brand
+function _brand(n) {
+  for (const b of _KNOWN_BRANDS) {
+    if (new RegExp(`\\b${b.replace(/\s+/g, '\\s+')}\\b`).test(n)) return b
   }
   return ''
 }
 
-function _extractSize(n) {
+function _size(n) {
   const m = n.match(/\b(\d+)\s*(ml|gr|g|mg)\b/i)
   if (!m) return null
-  let unit = m[2].toLowerCase()
-  if (unit === 'gr') unit = 'g'
+  let unit = m[2].toLowerCase(); if (unit === 'gr') unit = 'g'
   return `${parseInt(m[1])}${unit}`
 }
 
-function _removeTerm(n, termStr) {
-  if (!termStr) return n
-  const pattern = termStr.replace(/\s+/g, '\\s+')
-  return n.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ').replace(/\s+/g, ' ').trim()
-}
-
-function _removeSizeFromName(n) {
-  return n.replace(/\b\d+\s*(?:ml|gr|g|mg)\b/gi, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function _applyProductNorms(namePart, brand) {
-  namePart = namePart
-    .replace(/\btriple\s+accion\b/g, 'triple accion')
-    .replace(/\btriple\s*acci[oó]n\b/g, 'triple accion')
-    .replace(/\btripleacci[oó]n\b/g, 'triple accion')
-  if (brand === 'colgate') {
-    namePart = namePart.replace(/\btriple\b(?!\s+accion)/g, 'triple accion')
+// Recorre tipos de mayor a menor longitud.
+// Cuando encuentra null sigue buscando (es variedad, no tipo).
+function _type(n) {
+  for (const [key, value] of _PRODUCT_TYPES) {
+    if (new RegExp(`\\b${key.replace(/\s+/g, '\\s+')}\\b`).test(n)) {
+      if (value !== null) return value
+    }
   }
-  return namePart.replace(/\s+/g, ' ').trim()
+  return null
 }
 
-function _levenshtein(a, b) {
-  if (a === b) return 0
-  if (!a.length) return b.length
-  if (!b.length) return a.length
-  const dp = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
-  )
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
-      dp[i][j] = a[i-1] === b[j-1]
-        ? dp[i-1][j-1]
-        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
-  return dp[a.length][b.length]
+function getGroupKey(name) {
+  const n      = _clean(name)
+  const brand  = _brand(n)
+  const size   = _size(n)
+  const type   = _type(n) || _BRAND_DEFAULT_TYPE[brand] || ''
+  const key    = `${brand}_${type}_${size || 'nosize'}`
+  const sizeNum = size ? parseInt(size) : null
+  const sizeUnit = size ? size.replace(/\d+/, '') : null
+
+  const brandDisp = _BRAND_DISPLAY[brand] || (brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '')
+  const typeDisp  = _TYPE_DISPLAY[type] || (type ? type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '')
+  const canonicalName = [brandDisp, typeDisp, size || ''].filter(Boolean).join(' ')
+
+  return { brand, type, size, sizeNum, sizeUnit, key, canonicalName }
 }
 
-function _nameSimilarity(a, b) {
-  const max = Math.max(a.length, b.length)
-  return max === 0 ? 1 : (max - _levenshtein(a, b)) / max
-}
+// Separa tiendas en subgrupos si hay salto de precio > 40%
+function _splitByPrice(tiendas, key) {
+  if (tiendas.length < 2) return [tiendas]
+  const sorted = [...tiendas].sort((a, b) => a.precio - b.precio)
+  if (sorted[sorted.length - 1].precio / sorted[0].precio <= 1.4) return [sorted]
 
-function _buildGroupKey(name) {
-  const n1 = _step1(name)
-  const n2 = _removeStopwords(n1)
-  const brand   = _extractBrand(n2)
-  const sizeStr = _extractSize(n2)
-  const sizeNum = sizeStr ? parseInt(sizeStr) : null
-  let namePart = _removeTerm(n2, brand)
-  namePart = _removeSizeFromName(namePart)
-  namePart = _applyProductNorms(namePart, brand)
-  const key = `${brand}_${namePart}_${sizeStr || 'nosize'}`
-  return { brand, namePart, sizeStr, sizeNum, key }
-}
-
-// Extrae unidad de tamaño para precio_por_unidad (ml o g)
-function _sizeUnit(sizeStr) {
-  if (!sizeStr) return null
-  const m = sizeStr.match(/[a-z]+$/i)
-  return m ? m[0].toLowerCase() : null
+  let maxRatio = 0, splitIdx = 0
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const ratio = sorted[i + 1].precio / sorted[i].precio
+    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i }
+  }
+  const g1 = sorted.slice(0, splitIdx + 1)
+  const g2 = sorted.slice(splitIdx + 1)
+  console.log(`[AGRUPADOR] [SPLIT] "${key}" separado en 2 grupos por diferencia > 40% ($${g1[g1.length-1].precio} vs $${g2[0].precio})`)
+  return [g1, g2]
 }
 
 // ─── Agrupación de productos ───────────────────────────────────────────────────
@@ -172,32 +225,29 @@ function groupProducts(items, sortOrder) {
   const groups = new Map()
 
   for (const item of items) {
-    const { brand, namePart, sizeStr, sizeNum, key } = _buildGroupKey(item.productName)
-    const sizeUnit = _sizeUnit(sizeStr)
+    const { brand, type, size, sizeNum, sizeUnit, key, canonicalName } = getGroupKey(item.productName)
     const price = typeof item.price === 'number'
       ? item.price
       : parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0
 
     if (!groups.has(key)) {
       groups.set(key, {
-        _brand: brand, _namePart: namePart, _sizeNum: sizeNum,
         id: key.replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '').slice(0, 60),
-        nombre: item.productName,
+        nombre: canonicalName || item.productName,
         imagen: item.imageUrl || '',
-        tamaño: sizeStr || '',
+        tamaño: size || '',
         tamañoNum: sizeNum,
         tamañoUnit: sizeUnit,
         precio_minimo: Infinity,
-        brand: item.brand,
-        type: item.type,
-        size: item.size,
+        brand,
+        type: _TYPE_DISPLAY[type] || type,
+        size: size || '',
         tiendas: [],
       })
     }
 
     const g = groups.get(key)
     if (!g.imagen && item.imageUrl) g.imagen = item.imageUrl
-    if (item.productName.length > g.nombre.length) g.nombre = item.productName
 
     const precioPorUnidad = (sizeNum && sizeNum > 0 && price > 0)
       ? Math.round(price / sizeNum * 10) / 10
@@ -214,33 +264,17 @@ function groupProducts(items, sortOrder) {
     })
   }
 
-  // Paso de fusión fuzzy: grupos de una sola tienda sin marca se fusionan con
-  // grupos con marca cuando nombre similar + sizeNum igual
-  const groupList = Array.from(groups.values())
-  const merged = new Set()
-
-  for (let i = 0; i < groupList.length; i++) {
-    if (merged.has(i)) continue
-    const ga = groupList[i]
-    for (let j = i + 1; j < groupList.length; j++) {
-      if (merged.has(j)) continue
-      const gb = groupList[j]
-      const brandOk = !ga._brand || !gb._brand || ga._brand === gb._brand
-      const sizeOk  = ga._sizeNum === gb._sizeNum  // null === null también es true
-      if (!brandOk || !sizeOk) continue
-      const sim = _nameSimilarity(ga._namePart, gb._namePart)
-      if (sim >= 0.75) {
-        // Fusionar gb en ga
-        for (const t of gb.tiendas) ga.tiendas.push(t)
-        if (!ga.imagen && gb.imagen) ga.imagen = gb.imagen
-        if (gb.nombre.length > ga.nombre.length) ga.nombre = gb.nombre
-        merged.add(j)
-      }
-    }
+  // Aplanar grupos aplicando split de precio
+  const result = []
+  for (const [key, g] of groups) {
+    const subgroups = _splitByPrice(g.tiendas, key)
+    subgroups.forEach((tiendas, idx) => {
+      const suffix = idx > 0 ? `-${idx + 1}` : ''
+      result.push({ ...g, id: g.id + suffix, tiendas })
+    })
   }
 
-  return groupList
-    .filter((_, i) => !merged.has(i))
+  return result
     .map(g => {
       g.tiendas.sort((a, b) => a.precio - b.precio)
       if (g.tiendas.length > 0) {
@@ -260,7 +294,11 @@ function toggle(arr, item) {
 
 function sortSizes(sizes) {
   return [...sizes].sort((a, b) => {
-    const parse = s => { const [n, u] = s.split(' '); return u === 'ml' ? parseFloat(n) : parseFloat(n) + 100000 }
+    const parse = s => {
+      const m = s.match(/^(\d+)(ml|g|mg)$/)
+      if (!m) return 0
+      return m[2] === 'ml' ? parseInt(m[1]) : parseInt(m[1]) + 100000
+    }
     return parse(a) - parse(b)
   })
 }
@@ -351,18 +389,20 @@ export default function App() {
     source.onerror = () => { setLoading(false); source.close() }
   }
 
+  // Agrupar todos los resultados y derivar filtros de los grupos
+  const allGrouped = groupProducts(results, sortOrder)
+
   const stores = [...new Set(results.map(r => r.store))].sort()
-  const brands = [...new Set(results.map(r => r.brand).filter(Boolean))].sort()
-  const types  = [...new Set(results.map(r => r.type).filter(Boolean))].sort()
-  const sizes  = sortSizes([...new Set(results.map(r => r.size).filter(Boolean))])
+  const brands = [...new Set(allGrouped.map(g => g.brand).filter(Boolean))].sort()
+  const types  = [...new Set(allGrouped.map(g => g.type).filter(Boolean))].sort()
+  const sizes  = sortSizes([...new Set(allGrouped.map(g => g.tamaño).filter(Boolean))])
 
-  const filtered = results
-    .filter(r => activeStores.length === 0 || activeStores.includes(r.store))
-    .filter(r => activeBrands.length === 0 || activeBrands.includes(r.brand))
-    .filter(r => activeSizes.length  === 0 || activeSizes.includes(r.size))
-    .filter(r => activeTypes.length  === 0 || activeTypes.includes(r.type))
-
-  const grouped = groupProducts(filtered, sortOrder)
+  // Filtrar grupos (no resultados planos)
+  const grouped = allGrouped
+    .filter(g => activeStores.length === 0 || g.tiendas.some(t => activeStores.includes(t.nombre)))
+    .filter(g => activeBrands.length === 0 || activeBrands.includes(g.brand))
+    .filter(g => activeSizes.length  === 0 || activeSizes.includes(g.tamaño))
+    .filter(g => activeTypes.length  === 0 || activeTypes.includes(g.type))
 
   return (
     <div className="min-h-screen bg-gray-50">
