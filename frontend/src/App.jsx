@@ -46,6 +46,213 @@ function enrichProduct(p) {
   return { ...p, brand: detectBrand(p.productName), type: detectType(p.productName), size: detectSize(p.productName) }
 }
 
+// ─── Normalización avanzada de nombres ────────────────────────────────────────
+
+const _STOPWORDS = [
+  'pasta de dientes', 'crema dental', 'pasta dental',
+  'en barra', 'en spray', 'para cabello',
+  'shampoo', 'champu', 'desodorante', 'jabon',
+  'tintura', 'original', 'spray', 'barra',
+]
+
+const _BRAND_NORMS = [
+  [/head\s*&\s*shoulders|head&shoulders/gi, 'head shoulders'],
+  [/\bh&s\b/gi,                             'head shoulders'],
+  [/l[''']oreal|loreal/gi,                  'loreal'],
+  [/garnier\s+fructis/gi,                   'fructis'],
+  [/aqua\s*fresh/gi,                        'aquafresh'],
+  [/old\s+spice/gi,                         'oldspice'],
+]
+
+const _KNOWN_BRANDS = [
+  'head shoulders', 'lady speed stick', 'speed stick', 'cor intensa',
+  'pantene', 'elvive', 'familand', 'fructis', 'sedal',
+  'ilicit', 'nutrisse', 'excellence', 'issue',
+  'axe', 'nivea', 'rexona', 'oldspice', 'dove',
+  'colgate', 'pepsodent', 'aquafresh',
+  'simonds', 'protex', 'loreal',
+].sort((a, b) => b.length - a.length)
+
+function _step1(name) {
+  let n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  for (const [pat, rep] of _BRAND_NORMS) n = n.replace(pat, rep)
+  n = n.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  return n
+}
+
+function _removeStopwords(n) {
+  for (const sw of _STOPWORDS) {
+    const pattern = sw.replace(/\s+/g, '\\s+')
+    n = n.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
+  }
+  return n.replace(/\s+/g, ' ').trim()
+}
+
+function _extractBrand(n) {
+  for (const brand of _KNOWN_BRANDS) {
+    const pattern = brand.replace(/\s+/g, '\\s+')
+    if (new RegExp(`\\b${pattern}\\b`).test(n)) return brand
+  }
+  return ''
+}
+
+function _extractSize(n) {
+  const m = n.match(/\b(\d+)\s*(ml|gr|g|mg)\b/i)
+  if (!m) return null
+  let unit = m[2].toLowerCase()
+  if (unit === 'gr') unit = 'g'
+  return `${parseInt(m[1])}${unit}`
+}
+
+function _removeTerm(n, termStr) {
+  if (!termStr) return n
+  const pattern = termStr.replace(/\s+/g, '\\s+')
+  return n.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ').replace(/\s+/g, ' ').trim()
+}
+
+function _removeSizeFromName(n) {
+  return n.replace(/\b\d+\s*(?:ml|gr|g|mg)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function _applyProductNorms(namePart, brand) {
+  namePart = namePart
+    .replace(/\btriple\s+accion\b/g, 'triple accion')
+    .replace(/\btriple\s*acci[oó]n\b/g, 'triple accion')
+    .replace(/\btripleacci[oó]n\b/g, 'triple accion')
+  if (brand === 'colgate') {
+    namePart = namePart.replace(/\btriple\b(?!\s+accion)/g, 'triple accion')
+  }
+  return namePart.replace(/\s+/g, ' ').trim()
+}
+
+function _levenshtein(a, b) {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const dp = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+  )
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+  return dp[a.length][b.length]
+}
+
+function _nameSimilarity(a, b) {
+  const max = Math.max(a.length, b.length)
+  return max === 0 ? 1 : (max - _levenshtein(a, b)) / max
+}
+
+function _buildGroupKey(name) {
+  const n1 = _step1(name)
+  const n2 = _removeStopwords(n1)
+  const brand   = _extractBrand(n2)
+  const sizeStr = _extractSize(n2)
+  const sizeNum = sizeStr ? parseInt(sizeStr) : null
+  let namePart = _removeTerm(n2, brand)
+  namePart = _removeSizeFromName(namePart)
+  namePart = _applyProductNorms(namePart, brand)
+  const key = `${brand}_${namePart}_${sizeStr || 'nosize'}`
+  return { brand, namePart, sizeStr, sizeNum, key }
+}
+
+// Extrae unidad de tamaño para precio_por_unidad (ml o g)
+function _sizeUnit(sizeStr) {
+  if (!sizeStr) return null
+  const m = sizeStr.match(/[a-z]+$/i)
+  return m ? m[0].toLowerCase() : null
+}
+
+// ─── Agrupación de productos ───────────────────────────────────────────────────
+
+function groupProducts(items, sortOrder) {
+  const groups = new Map()
+
+  for (const item of items) {
+    const { brand, namePart, sizeStr, sizeNum, key } = _buildGroupKey(item.productName)
+    const sizeUnit = _sizeUnit(sizeStr)
+    const price = typeof item.price === 'number'
+      ? item.price
+      : parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        _brand: brand, _namePart: namePart, _sizeNum: sizeNum,
+        id: key.replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '').slice(0, 60),
+        nombre: item.productName,
+        imagen: item.imageUrl || '',
+        tamaño: sizeStr || '',
+        tamañoNum: sizeNum,
+        tamañoUnit: sizeUnit,
+        precio_minimo: Infinity,
+        brand: item.brand,
+        type: item.type,
+        size: item.size,
+        tiendas: [],
+      })
+    }
+
+    const g = groups.get(key)
+    if (!g.imagen && item.imageUrl) g.imagen = item.imageUrl
+    if (item.productName.length > g.nombre.length) g.nombre = item.productName
+
+    const precioPorUnidad = (sizeNum && sizeNum > 0 && price > 0)
+      ? Math.round(price / sizeNum * 10) / 10
+      : null
+
+    g.tiendas.push({
+      nombre: item.store,
+      precio: price,
+      priceFormatted: item.priceFormatted || `$${price.toLocaleString('es-CL')}`,
+      precio_por_unidad: precioPorUnidad,
+      url: item.productUrl,
+      mejor_precio: false,
+      productName: item.productName,
+    })
+  }
+
+  // Paso de fusión fuzzy: grupos de una sola tienda sin marca se fusionan con
+  // grupos con marca cuando nombre similar + sizeNum igual
+  const groupList = Array.from(groups.values())
+  const merged = new Set()
+
+  for (let i = 0; i < groupList.length; i++) {
+    if (merged.has(i)) continue
+    const ga = groupList[i]
+    for (let j = i + 1; j < groupList.length; j++) {
+      if (merged.has(j)) continue
+      const gb = groupList[j]
+      const brandOk = !ga._brand || !gb._brand || ga._brand === gb._brand
+      const sizeOk  = ga._sizeNum !== null && ga._sizeNum === gb._sizeNum
+      if (!brandOk || !sizeOk) continue
+      const sim = _nameSimilarity(ga._namePart, gb._namePart)
+      if (sim >= 0.8) {
+        // Fusionar gb en ga
+        for (const t of gb.tiendas) ga.tiendas.push(t)
+        if (!ga.imagen && gb.imagen) ga.imagen = gb.imagen
+        if (gb.nombre.length > ga.nombre.length) ga.nombre = gb.nombre
+        merged.add(j)
+      }
+    }
+  }
+
+  return groupList
+    .filter((_, i) => !merged.has(i))
+    .map(g => {
+      g.tiendas.sort((a, b) => a.precio - b.precio)
+      if (g.tiendas.length > 0) {
+        g.tiendas[0].mejor_precio = true
+        g.precio_minimo = g.tiendas[0].precio
+      }
+      return g
+    })
+    .sort((a, b) => sortOrder === 'asc'
+      ? a.precio_minimo - b.precio_minimo
+      : b.precio_minimo - a.precio_minimo)
+}
+
 function toggle(arr, item) {
   return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item]
 }
@@ -57,6 +264,33 @@ function sortSizes(sizes) {
   })
 }
 
+function HomeButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Volver al inicio"
+      style={{
+        width: '40px',
+        height: '40px',
+        borderRadius: '16px',
+        background: 'white',
+        border: '2px solid #1f2937',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        padding: 0,
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="#ff8674" style={{ width: '20px', height: '20px' }}>
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+    </button>
+  )
+}
+
 export default function App() {
   const [results, setResults] = useState([])
   const [storeStatus, setStoreStatus] = useState({})
@@ -66,6 +300,8 @@ export default function App() {
   const [searched, setSearched] = useState(false)
   const [historyProduct, setHistoryProduct] = useState(null)
   const [activeCategory, setActiveCategory] = useState(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [homeKey, setHomeKey] = useState(0)
 
   const [activeStores, setActiveStores] = useState([])
   const [activeBrands, setActiveBrands] = useState([])
@@ -76,11 +312,25 @@ export default function App() {
     setActiveStores([]); setActiveBrands([]); setActiveSizes([]); setActiveTypes([])
   }
 
+  function handleHome() {
+    setResults([])
+    setStoreStatus({})
+    setLoading(false)
+    setQuery('')
+    setSortOrder('asc')
+    setSearched(false)
+    setActiveCategory(null)
+    setSidebarCollapsed(false)
+    resetFilters()
+    setHomeKey(k => k + 1)
+  }
+
   function handleSearch(term, category = null) {
     if (!term.trim()) return
     setQuery(term); setLoading(true); setSearched(true)
     setActiveCategory(category)
     setResults([]); setStoreStatus({}); resetFilters()
+    setSidebarCollapsed(true)
 
     const source = new EventSource(`/api/search?q=${encodeURIComponent(term)}`)
     source.onmessage = (e) => {
@@ -110,19 +360,25 @@ export default function App() {
     .filter(r => activeBrands.length === 0 || activeBrands.includes(r.brand))
     .filter(r => activeSizes.length  === 0 || activeSizes.includes(r.size))
     .filter(r => activeTypes.length  === 0 || activeTypes.includes(r.type))
-    .sort((a, b) => sortOrder === 'asc' ? a.price - b.price : b.price - a.price)
+
+  const grouped = groupProducts(filtered, sortOrder)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-brand text-white py-4 px-4 shadow">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-xl font-bold">Comparador De Precios Da-Ta By Otto</h1>
-          <p className="text-white/70 text-xs mt-0.5">Higiene y belleza en un solo lugar</p>
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
+          {/* Botón Home */}
+          <HomeButton onClick={handleHome} />
+
+          <div>
+            <h1 className="text-xl font-bold">Comparador De Precios Da-Ta By Otto</h1>
+            <p className="text-white/70 text-xs mt-0.5">Higiene y belleza en un solo lugar</p>
+          </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-4">
-        <SearchBar onSearch={handleSearch} loading={loading} />
+        <SearchBar key={homeKey} onSearch={handleSearch} loading={loading} />
 
         {/* Categorías */}
         <div className="flex flex-wrap gap-2 mt-3">
@@ -158,10 +414,11 @@ export default function App() {
             sizes={sizes}     activeSizes={activeSizes}    onToggleSize={z  => setActiveSizes(toggle(activeSizes, z))}
             types={types}     activeTypes={activeTypes}    onToggleType={t  => setActiveTypes(toggle(activeTypes, t))}
             sortOrder={sortOrder} onSortChange={setSortOrder}
-            totalResults={filtered.length} hasResults={results.length > 0}
+            totalResults={grouped.length} hasResults={results.length > 0}
+            collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(c => !c)}
           />
           <div className="flex-1 min-w-0">
-            <ResultsTable results={filtered} loading={loading} searched={searched} query={query}
+            <ResultsTable groups={grouped} loading={loading} searched={searched} query={query}
               onHistory={setHistoryProduct} />
           </div>
         </div>

@@ -44,15 +44,52 @@ export default function FilterBar({
   sortOrder, onSortChange,
   totalResults,
   hasResults,
+  collapsed,
+  onToggleCollapse,
 }) {
   const anyActive = activeStores.length + activeBrands.length + activeSizes.length + activeTypes.length > 0
 
+  // Sidebar colapsada: solo botón de expansión
+  if (collapsed) {
+    return (
+      <aside className="flex-shrink-0" style={{ width: '32px' }}>
+        <div className="sticky top-4">
+          <button
+            onClick={onToggleCollapse}
+            title="Mostrar filtros"
+            className="flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-brand hover:border-brand transition shadow-sm"
+            style={{ width: '32px', height: '32px' }}
+          >
+            {/* Flecha apuntando derecha = expandir */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
+  // Sidebar expandida
   return (
-    <aside className="w-44 flex-shrink-0">
+    <aside className="flex-shrink-0" style={{ width: '176px' }}>
       <div className="bg-white border border-gray-200 rounded-xl p-3 sticky top-4">
-        {/* Ordenar */}
+
+        {/* Ordenar + botón colapsar */}
         <div className="mb-3 pb-3 border-b border-gray-100">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1.5">Ordenar</p>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Ordenar</p>
+            <button
+              onClick={onToggleCollapse}
+              title="Ocultar filtros"
+              className="text-gray-300 hover:text-brand transition"
+            >
+              {/* Flecha apuntando izquierda = colapsar */}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
           <select value={sortOrder} onChange={e => onSortChange(e.target.value)}
             className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white">
             <option value="asc">Menor precio</option>
@@ -74,10 +111,10 @@ export default function FilterBar({
           </button>
         )}
 
-        <Section label="Tipo"   items={types}  active={activeTypes}  onToggle={onToggleType} />
-        <Section label="Marca"  items={brands} active={activeBrands} onToggle={onToggleBrand} />
-        <Section label="Ml / Gr" items={sizes} active={activeSizes}  onToggle={onToggleSize} />
-        <Section label="Tienda" items={stores} active={activeStores} onToggle={onToggleStore} />
+        <Section label="Tipo"    items={types}  active={activeTypes}  onToggle={onToggleType} />
+        <Section label="Marca"   items={brands} active={activeBrands} onToggle={onToggleBrand} />
+        <Section label="Ml / Gr" items={sizes}  active={activeSizes}  onToggle={onToggleSize} />
+        <Section label="Tienda"  items={stores} active={activeStores} onToggle={onToggleStore} />
       </div>
     </aside>
   )
