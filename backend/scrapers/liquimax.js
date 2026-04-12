@@ -1,55 +1,68 @@
-import { newPage } from '../browser.js'
-
+// Liquimax es Bootic → parseamos el HTML de búsqueda directamente (sin browser)
+// MEJORA: no normaliza query antes de buscar
 export async function scrapeLiquimax(query) {
-  
-  const page = await newPage()
-  await page.setExtraHTTPHeaders({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36'
-  })
-
+  const STORE = 'LIQUIMAX'
   try {
-    // Ir directo a la URL de búsqueda (más rápido y confiable)
-    await page.goto(`https://www.liquimax.cl/search?q=${encodeURIComponent(query)}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 20000,
+    const url = `https://www.liquimax.cl/search?q=${encodeURIComponent(query)}`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36' },
+      signal: AbortSignal.timeout(20000),
     })
+    if (!res.ok) {
+      console.warn(`[${STORE}] [WARN] HTTP ${res.status} para query="${query}"`)
+      return []
+    }
+    const html = await res.text()
 
-    const hasResults = await page.waitForSelector('[class*="product-item"]', { timeout: 12000 })
-      .then(() => true).catch(() => false)
+    const results = []
+    // Iterar sobre cada enlace de producto (product-link product-image-link)
+    const anchorMarker = 'class="product-link product-image-link"'
+    const anchors = html.split(anchorMarker)
 
-    if (!hasResults) return []
+    for (let i = 1; i < anchors.length && results.length < 30; i++) {
+      // El bloque empieza justo en el <a ... href="..." title="...">
+      const segment = anchors[i].substring(0, 5000)
 
-    return await page.evaluate(() => {
-      const items = document.querySelectorAll('[class*="product-item"]')
-      return Array.from(items).slice(0, 25).map(el => {
-        // Nombre: primer enlace a /products/ con texto suficiente
-        const links = Array.from(el.querySelectorAll('a'))
-        const nameEl = links.find(a =>
-          a.href?.includes('/products/') &&
-          !a.className?.includes('image') &&
-          a.innerText?.trim().length > 3
-        )
-        const name = nameEl?.innerText?.trim() || ''
+      // Título: atributo title en la etiqueta <a>
+      // BUG: podría capturar un aria-label u otro title="" antes del título real
+      const titleMatch = segment.match(/title="([^"]{5,})"/)
+      const productName = titleMatch ? titleMatch[1].trim() : ''
+      if (!productName) continue
 
-        // Precio real: usar data-initial-value del span .bootic-price (evita precios x 100ml)
-        const priceRaw = el.querySelector('.bootic-price')?.getAttribute('data-initial-value')
-          || el.querySelector('.bootic-price')?.innerText?.trim()
-          || '0'
-        const priceMatch = priceRaw.match(/\$([\d]{1,3}(?:\.[\d]{3})*)/)
-        const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, '')) : 0
+      // URL del producto
+      // BUG: requiere URL absoluta con https://www.liquimax.cl/ — links relativos se pierden
+      const hrefMatch = segment.match(/href="(https:\/\/www\.liquimax\.cl\/[^"]+)"/)
+      const productUrl = hrefMatch ? hrefMatch[1] : ''
 
-        const imageUrl  = el.querySelector('img')?.src || ''
-        const link      = links.find(a => a.href?.includes('/products/'))?.href || ''
+      // Imagen: siguiente src de bolder.run en el segmento
+      const imgMatch = segment.match(/src="(https:\/\/i\.bolder\.run\/[^"]+)"/)
+      const imageUrl = imgMatch ? imgMatch[1] : ''
 
-        return {
-          store: 'Liquimax', storeLogo: 'liquimax',
-          productName: name, price,
-          priceFormatted: `$${price.toLocaleString('es-CL')}`,
-          imageUrl, productUrl: link, available: true,
-        }
-      }).filter(p => p.productName && p.price > 0 && p.price < 500000)
-    })
-  } finally {
-    await page.close()
+      // Precio: span precio-animado
+      const priceMatch = segment.match(/precio-animado[^>]*>\$([0-9.,]+)/)
+      if (!priceMatch) continue
+      const priceRaw = priceMatch[1].replace(/\./g, '').replace(',', '.')
+      const price = Math.round(parseFloat(priceRaw)) || 0
+
+      if (!price || price >= 500000) continue
+
+      results.push({
+        store: 'Liquimax', storeLogo: 'liquimax',
+        productName, price,
+        priceFormatted: `$${price.toLocaleString('es-CL')}`,
+        imageUrl, productUrl, available: true,
+      })
+    }
+
+    const final = results.filter(p => p.productName && p.price > 0)
+    if (final.length === 0) {
+      console.warn(`[${STORE}] [WARN] 0 resultados para query="${query}" (${anchors.length - 1} anchors encontrados en HTML)`)
+    } else {
+      console.log(`[${STORE}] [OK] ${final.length} productos para query="${query}"`)
+    }
+    return final
+  } catch (e) {
+    console.error(`[${STORE}] [ERROR] ${e.message} para query="${query}"`)
+    return []
   }
 }

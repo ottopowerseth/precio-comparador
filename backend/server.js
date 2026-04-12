@@ -144,16 +144,20 @@ const CATEGORY_EXTRA_BRAND_QUERIES = {
   'shampoo':           ['familand'],
   'tinturas':          ['ilicit'],
   'desodorantes':      ['lady speed stick'],
-  'pastas de dientes': [],
+  'pastas de dientes': ['colgate'],
   'jabones':           [],
 }
+
+// Categorías donde mostramos múltiples productos por marca (sin colapsar por tamaño)
+const CATEGORIES_USE_STORE_DEDUP = new Set(['pastas de dientes', 'jabones'])
 
 const SCRAPERS = [
   // { key: 'mercadolibre', fn: scrapeMercadoLibre },
   { key: 'lamundial',    fn: scrapeLaMundial },
   { key: 'liquimax',     fn: scrapeLiquimax },
   { key: 'preunic',      fn: scrapePreunic },
-  { key: 'espol',        fn: scrapeEspol },
+  // Espol deshabilitado: todos los precios son placeholder $99,999 (WooCommerce sin precios reales)
+  // { key: 'espol',        fn: scrapeEspol },
   { key: 'maicao',       fn: scrapeMaicao },
   { key: 'trimaico',     fn: scrapeTrimaico },
 ]
@@ -215,7 +219,7 @@ app.get('/api/search', async (req, res) => {
         }
       }
 
-      const dedupFn = categoryKey ? deduplicateBrandSize : deduplicateStore
+      const dedupFn = (categoryKey && !CATEGORIES_USE_STORE_DEDUP.has(categoryKey)) ? deduplicateBrandSize : deduplicateStore
       const unique = applyQueryFilter(query, dedupFn(rawResults))
       recordPrices(unique)
       allResults.push(...unique)
