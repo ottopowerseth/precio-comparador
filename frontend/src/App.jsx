@@ -234,7 +234,9 @@ function getGroupKey(name) {
 }
 
 // Separa tiendas en subgrupos si hay salto de precio > 40%
-function _splitByPrice(tiendas, key) {
+// No aplica para tipos size-agnostic (ej: tinturas) donde la variación entre tiendas es esperada
+function _splitByPrice(tiendas, key, type) {
+  if (_SIZE_AGNOSTIC_TYPES.has(type)) return [[...tiendas].sort((a, b) => a.precio - b.precio)]
   if (tiendas.length < 2) return [tiendas]
   const sorted = [...tiendas].sort((a, b) => a.precio - b.precio)
   if (sorted[sorted.length - 1].precio / sorted[0].precio <= 1.4) return [sorted]
@@ -271,7 +273,8 @@ function groupProducts(items, sortOrder) {
         tamañoUnit: sizeUnit,
         precio_minimo: Infinity,
         brand,
-        type: _TYPE_DISPLAY[type] || type,
+        _type: type,                        // tipo interno para _splitByPrice
+        type: _TYPE_DISPLAY[type] || type,  // tipo display para filtros
         size: size || '',
         tiendas: [],
       })
@@ -284,21 +287,33 @@ function groupProducts(items, sortOrder) {
       ? Math.round(price / sizeNum * 10) / 10
       : null
 
-    g.tiendas.push({
-      nombre: item.store,
-      precio: price,
-      priceFormatted: item.priceFormatted || `$${price.toLocaleString('es-CL')}`,
-      precio_por_unidad: precioPorUnidad,
-      url: item.productUrl,
-      mejor_precio: false,
-      productName: item.productName,
-    })
+    // Si la tienda ya está en el grupo, conservar el precio más bajo (evita duplicados por múltiples queries)
+    const existing = g.tiendas.find(t => t.nombre === item.store)
+    if (existing) {
+      if (price < existing.precio) {
+        existing.precio = price
+        existing.priceFormatted = item.priceFormatted || `$${price.toLocaleString('es-CL')}`
+        existing.precio_por_unidad = precioPorUnidad
+        existing.url = item.productUrl
+        existing.productName = item.productName
+      }
+    } else {
+      g.tiendas.push({
+        nombre: item.store,
+        precio: price,
+        priceFormatted: item.priceFormatted || `$${price.toLocaleString('es-CL')}`,
+        precio_por_unidad: precioPorUnidad,
+        url: item.productUrl,
+        mejor_precio: false,
+        productName: item.productName,
+      })
+    }
   }
 
   // Aplanar grupos aplicando split de precio
   const result = []
   for (const [key, g] of groups) {
-    const subgroups = _splitByPrice(g.tiendas, key)
+    const subgroups = _splitByPrice(g.tiendas, key, g._type)
     subgroups.forEach((tiendas, idx) => {
       const suffix = idx > 0 ? `-${idx + 1}` : ''
       result.push({ ...g, id: g.id + suffix, tiendas })

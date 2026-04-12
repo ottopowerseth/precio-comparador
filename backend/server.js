@@ -159,16 +159,17 @@ function deduplicateBrandSize(results) {
 // fetchOnly: solo scrapers sin browser (menos RAM)
 const CATEGORY_EXTRA_BRAND_QUERIES = {
   'shampoo': {
-    all:       ['familand shampoo'],
-    fetchOnly: ['head shoulders shampoo', 'pantene shampoo', 'elvive shampoo', 'dove shampoo', 'fructis shampoo', 'sedal shampoo'],
+    all:       ['familand shampoo', 'head shoulders shampoo', 'pantene shampoo'],
+    fetchOnly: ['elvive shampoo', 'dove shampoo', 'fructis shampoo', 'sedal shampoo'],
   },
   'tinturas': {
-    all:       ['ilicit tintura'],
-    fetchOnly: ['issue tintura', 'nutrisse tintura', 'cor intensa tintura', 'excellence tintura'],
+    // Todas las marcas en all → todos los scrapers (fetch + browser) buscan cada marca
+    all:       ['ilicit tintura', 'issue tintura', 'nutrisse tintura', 'cor intensa tintura', 'excellence tintura'],
+    fetchOnly: [],
   },
   'desodorantes': {
-    all:       ['lady speed stick desodorante'],
-    fetchOnly: ['axe desodorante', 'dove desodorante', 'rexona desodorante', 'nivea desodorante', 'old spice desodorante', 'speed stick desodorante'],
+    all:       ['lady speed stick desodorante', 'dove desodorante', 'rexona desodorante'],
+    fetchOnly: ['axe desodorante', 'nivea desodorante', 'old spice desodorante', 'speed stick desodorante'],
   },
   'pastas de dientes': {
     all:       ['colgate pasta dental'],
