@@ -139,21 +139,30 @@ function deduplicateBrandSize(results) {
   })
 }
 
-// Para categorías: buscar cada marca directamente en paralelo por tienda
-// así garantizamos encontrar todas las marcas aunque no salgan en búsqueda genérica
-// Para categorías: búsqueda genérica devuelve las marcas principales.
-// Solo agregamos 1-2 queries extra para marcas que raramente aparecen en búsqueda genérica.
-// Mantener pocas queries para no sobrecargar el browser.
-// Una sola búsqueda extra por categoría para marcas que raramente aparecen en genérico
-// Solo 1 query extra para no sobrecargar el browser (server tiene 454MB RAM)
-// 1 sola query extra por categoría para la marca más difícil de encontrar
-// Mantener mínimo para no crashear el browser (servidor con 454MB RAM)
+// Queries extra por categoría.
+// all:       se corren en TODOS los scrapers (fetch + browser)
+// fetchOnly: solo en scrapers sin browser (rápidos) — evita sobrecargar RAM del server
 const CATEGORY_EXTRA_BRAND_QUERIES = {
-  'shampoo':           ['familand'],
-  'tinturas':          ['ilicit'],
-  'desodorantes':      ['lady speed stick'],
-  'pastas de dientes': ['colgate'],
-  'jabones':           [],
+  'shampoo': {
+    all:       ['familand'],
+    fetchOnly: ['head shoulders', 'pantene', 'sedal', 'elvive', 'dove shampoo', 'fructis'],
+  },
+  'tinturas': {
+    all:       ['ilicit'],
+    fetchOnly: ['issue tintura', 'nutrisse', 'cor intensa', 'excellence'],
+  },
+  'desodorantes': {
+    all:       ['lady speed stick'],
+    fetchOnly: ['axe desodorante', 'dove desodorante', 'rexona desodorante', 'nivea desodorante', 'old spice', 'speed stick desodorante'],
+  },
+  'pastas de dientes': {
+    all:       ['colgate'],
+    fetchOnly: ['pepsodent', 'aquafresh'],
+  },
+  'jabones': {
+    all:       [],
+    fetchOnly: ['dove jabon', 'protex', 'simonds'],
+  },
 }
 
 // Categorías donde mostramos múltiples productos por marca (sin colapsar por tamaño)
@@ -161,13 +170,13 @@ const CATEGORIES_USE_STORE_DEDUP = new Set(['pastas de dientes', 'jabones'])
 
 const SCRAPERS = [
   // { key: 'mercadolibre', fn: scrapeMercadoLibre },
-  { key: 'lamundial',    fn: scrapeLaMundial },
-  { key: 'liquimax',     fn: scrapeLiquimax },
-  { key: 'preunic',      fn: scrapePreunic },
+  { key: 'lamundial',    fn: scrapeLaMundial,  useBrowser: false },
+  { key: 'liquimax',     fn: scrapeLiquimax,   useBrowser: false },
+  { key: 'preunic',      fn: scrapePreunic,    useBrowser: true  },
   // Espol deshabilitado: todos los precios son placeholder $99,999 (WooCommerce sin precios reales)
-  // { key: 'espol',        fn: scrapeEspol },
-  { key: 'maicao',       fn: scrapeMaicao },
-  { key: 'trimaico',     fn: scrapeTrimaico },
+  // { key: 'espol',        fn: scrapeEspol,   useBrowser: true  },
+  { key: 'maicao',       fn: scrapeMaicao,     useBrowser: false },
+  { key: 'trimaico',     fn: scrapeTrimaico,   useBrowser: true  },
 ]
 
 // Ruta de streaming (SSE) — manda resultados tienda por tienda
@@ -200,11 +209,12 @@ app.get('/api/search', async (req, res) => {
   // Detectar si la búsqueda es una categoría conocida
   const qNorm = normalizeName(query)
   const categoryKey = Object.keys(CATEGORY_EXTRA_BRAND_QUERIES).find(k => qNorm.includes(normalizeName(k)))
-  const extraBrandQueries = categoryKey ? CATEGORY_EXTRA_BRAND_QUERIES[categoryKey] : []
+  const categoryConfig = categoryKey ? CATEGORY_EXTRA_BRAND_QUERIES[categoryKey] : { all: [], fetchOnly: [] }
+  const totalExtra = (categoryConfig.all?.length || 0) + (categoryConfig.fetchOnly?.length || 0)
 
-  console.log(categoryKey ? `[category] ${categoryKey} → generic + ${extraBrandQueries.length} extra queries` : `[search] simple query`)
+  console.log(categoryKey ? `[category] ${categoryKey} → generic + ${totalExtra} extra queries (${categoryConfig.all?.length} all, ${categoryConfig.fetchOnly?.length} fetchOnly)` : `[search] simple query`)
 
-  for (const { key, fn } of SCRAPERS) {
+  for (const { key, fn, useBrowser } of SCRAPERS) {
     try {
       // Siempre buscar con el query genérico
       const rawResults = await Promise.race([
@@ -212,18 +222,20 @@ app.get('/api/search', async (req, res) => {
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
       ])
 
-      // Para categorías: agregar queries extra (solo 1-2) para marcas poco comunes
-      if (extraBrandQueries.length > 0) {
-        for (const bq of extraBrandQueries) {
-          try {
-            const extra = await Promise.race([
-              fn(bq),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000))
-            ])
-            if (extra?.length > 0) rawResults.push(...extra)
-          } catch (e) {
-            console.error(`  [${key}] extra query "${bq}" failed:`, e.message)
-          }
+      // Para categorías: scrapers fetch corren all+fetchOnly; scrapers browser solo corren all
+      const extraQueries = useBrowser
+        ? (categoryConfig.all || [])
+        : [...(categoryConfig.all || []), ...(categoryConfig.fetchOnly || [])]
+
+      for (const bq of extraQueries) {
+        try {
+          const extra = await Promise.race([
+            fn(bq),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000))
+          ])
+          if (extra?.length > 0) rawResults.push(...extra)
+        } catch (e) {
+          console.error(`  [${key}] extra query "${bq}" failed:`, e.message)
         }
       }
 

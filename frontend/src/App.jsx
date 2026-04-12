@@ -82,6 +82,7 @@ const _TYPE_DISPLAY = {
   'crema peinar':   'Crema de Peinar',
   'spray':          'Spray',
   'barra':          'Barra',
+  'roll on':        'Roll-On',
   'jabon':          'Jabón',
   'pasta dental':   'Pasta Dental',
   'tintura':        'Tintura',
@@ -136,7 +137,10 @@ const _PRODUCT_TYPES_RAW = {
   'pan de jabon':      'jabon',
   'crema peinar':      'crema peinar',
   'coloracion':        'tintura',
+  'antitranspirante':  null,   // variedad — ignorar, seguir buscando
   'desodorante':       null,   // genérico; spray/barra lo sobreescribe
+  'roll on':           'roll on',
+  'rollon':            'roll on',
   'en barra':          'barra',
   'aerosol':           'spray',
   'shampoo':           'shampoo',

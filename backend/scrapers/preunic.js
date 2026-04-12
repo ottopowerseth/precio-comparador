@@ -1,8 +1,18 @@
 import { newPage } from '../browser.js'
 // MEJORA: no normaliza query antes de buscar
 // NOTA: browser compartido puede tardar en arrancar en frío — timeouts aumentados
+function normalizeQuery(q) {
+  return q
+    .replace(/\bdesodorantes\b/gi, 'desodorante')
+    .replace(/\btinturas\b/gi, 'tintura')
+    .replace(/\bjabones\b/gi, 'jabon')
+    .replace(/\bshampoos\b/gi, 'shampoo')
+    .trim()
+}
+
 export async function scrapePreunic(query) {
   const STORE = 'PREUNIC'
+  query = normalizeQuery(query)
   const page = await newPage()
   await page.setExtraHTTPHeaders({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36'
