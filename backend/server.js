@@ -73,15 +73,23 @@ const CATEGORY_FILTERS = {
   ],
 }
 
+// Palabras excluidas por categoría: si el nombre contiene alguna, se descarta
+const CATEGORY_EXCLUDE = {
+  shampoo: ['acondicionador', 'balsamo', 'balm', 'conditioner', 'acond'],
+}
+
 // Aplica filtro de categoría si la búsqueda coincide con una categoría definida
 function applyQueryFilter(query, results) {
   const q = normalizeName(query)
   const categoryKey = Object.keys(CATEGORY_FILTERS).find(k => q.includes(normalizeName(k)))
   if (!categoryKey) return results
 
+  const excludeWords = CATEGORY_EXCLUDE[categoryKey] || []
   const allowed = CATEGORY_FILTERS[categoryKey]
   return results.filter(p => {
     const name = normalizeName(p.productName)
+    // Descartar si el nombre contiene palabras excluidas para esta categoría
+    if (excludeWords.some(w => name.includes(w))) return false
     return allowed.some(({ brand, sizes }) => {
       if (!name.includes(normalizeName(brand))) return false
       if (!sizes) return true
