@@ -68,11 +68,19 @@ const _KNOWN_BRANDS = [
 
 // Tipo por defecto para marcas monomorfas (cuando el nombre no indica el tipo)
 const _BRAND_DEFAULT_TYPE = {
-  'colgate':   'pasta dental',
-  'pepsodent': 'pasta dental',
-  'aquafresh': 'pasta dental',
-  'simonds':   'jabon',
-  'protex':    'jabon',
+  // pastas dentales
+  'colgate':     'pasta dental',
+  'pepsodent':   'pasta dental',
+  'aquafresh':   'pasta dental',
+  // jabones
+  'simonds':     'jabon',
+  'protex':      'jabon',
+  // tinturas — "Excellence 48" y "Excellence Tintura 48" se agrupan juntos
+  'ilicit':      'tintura',
+  'nutrisse':    'tintura',
+  'cor intensa': 'tintura',
+  'excellence':  'tintura',
+  'issue':       'tintura',
 }
 
 // Nombres de display para tipos canónicos

@@ -33,49 +33,61 @@ function normalizeName(name) {
 }
 
 // Filtros por categoría: marca → tamaños permitidos (null = todos los tamaños)
+// Marcas permitidas por categoría (todas las tallas, el frontend agrupa por tamaño)
 const CATEGORY_FILTERS = {
   shampoo: [
-    { brand: 'head & shoulders', sizes: ['180', '375'] },
-    { brand: 'head shoulders',   sizes: ['180', '375'] },
-    { brand: 'hs ',              sizes: ['180', '375'] },
-    { brand: 'pantene',          sizes: ['400'] },
-    { brand: 'elvive',           sizes: ['370', '680'] },
-    { brand: 'familand',         sizes: ['750'] },
-    { brand: 'dove',             sizes: null },
-    { brand: 'fructis',          sizes: null },
-    { brand: 'sedal',            sizes: null },
+    { brand: 'head & shoulders' },
+    { brand: 'head shoulders'   },
+    { brand: 'pantene'          },
+    { brand: 'elvive'           },
+    { brand: 'familand'         },
+    { brand: 'dove'             },
+    { brand: 'fructis'          },
+    { brand: 'sedal'            },
   ],
   tinturas: [
-    { brand: 'ilicit',           sizes: null },
-    { brand: 'nutrisse',         sizes: null },
-    { brand: 'cor intensa',      sizes: null },
-    { brand: 'excellence',       sizes: null },
-    { brand: 'issue',            sizes: null },
+    { brand: 'ilicit'      },
+    { brand: 'nutrisse'    },
+    { brand: 'cor intensa' },
+    { brand: 'excellence'  },
+    { brand: 'issue'       },
   ],
   desodorantes: [
-    { brand: 'axe',              sizes: null },
-    { brand: 'dove',             sizes: null },
-    { brand: 'lady speed stick', sizes: null },
-    { brand: 'speed stick',      sizes: null },
-    { brand: 'nivea',            sizes: null },
-    { brand: 'rexona',           sizes: null },
-    { brand: 'old spice',        sizes: null },
+    { brand: 'axe'              },
+    { brand: 'dove'             },
+    { brand: 'lady speed stick' },
+    { brand: 'speed stick'      },
+    { brand: 'nivea'            },
+    { brand: 'rexona'           },
+    { brand: 'old spice'        },
   ],
   'pastas de dientes': [
-    { brand: 'colgate',          sizes: null },
-    { brand: 'pepsodent',        sizes: null },
-    { brand: 'aquafresh',        sizes: null },
+    { brand: 'colgate'    },
+    { brand: 'pepsodent'  },
+    { brand: 'aquafresh'  },
   ],
   jabones: [
-    { brand: 'simonds',          sizes: null },
-    { brand: 'dove',             sizes: null },
-    { brand: 'protex',           sizes: null },
+    { brand: 'simonds' },
+    { brand: 'dove'    },
+    { brand: 'protex'  },
   ],
 }
 
-// Palabras excluidas por categoría: si el nombre contiene alguna, se descarta
+// Palabras excluidas por categoría
 const CATEGORY_EXCLUDE = {
-  shampoo: ['acondicionador', 'balsamo', 'balm', 'conditioner', 'acond'],
+  shampoo:      ['acondicionador', 'balsamo', 'balm', 'conditioner', 'acond', 'mascarilla', 'tratamiento'],
+  desodorantes: ['shampoo', 'jabon', 'champu'],
+  jabones:      ['shampoo', 'champu', 'desodorante'],
+}
+
+// Al menos una de estas palabras debe estar en el nombre del producto
+// (evita que un Dove shampoo aparezca en desodorantes, etc.)
+const CATEGORY_MUST_CONTAIN = {
+  shampoo:             ['shampoo', 'champu'],
+  tinturas:            ['tintura', 'tinte', 'coloraci', 'ilicit', 'nutrisse', 'cor intensa', 'excellence', 'issue'],
+  desodorantes:        ['desodorante', 'deo', 'aerosol', 'spray', 'barra', 'roll on', 'rollon', 'antitranspirante'],
+  'pastas de dientes': ['pasta', 'dental', 'crema dental', 'gel dental', 'colgate', 'pepsodent', 'aquafresh'],
+  jabones:             ['jabon', 'jab', 'pan de', 'simonds', 'protex'],
 }
 
 // Aplica filtro de categoría si la búsqueda coincide con una categoría definida
@@ -84,18 +96,18 @@ function applyQueryFilter(query, results) {
   const categoryKey = Object.keys(CATEGORY_FILTERS).find(k => q.includes(normalizeName(k)))
   if (!categoryKey) return results
 
-  const excludeWords = CATEGORY_EXCLUDE[categoryKey] || []
-  const allowed = CATEGORY_FILTERS[categoryKey]
+  const excludeWords = (CATEGORY_EXCLUDE[categoryKey] || []).map(normalizeName)
+  const mustContain  = (CATEGORY_MUST_CONTAIN[categoryKey] || []).map(normalizeName)
+  const allowed      = CATEGORY_FILTERS[categoryKey]
+
   return results.filter(p => {
     const name = normalizeName(p.productName)
-    // Descartar si el nombre contiene palabras excluidas para esta categoría
+    // Descartar si contiene palabras excluidas
     if (excludeWords.some(w => name.includes(w))) return false
-    return allowed.some(({ brand, sizes }) => {
-      if (!name.includes(normalizeName(brand))) return false
-      if (!sizes) return true
-      // Verificar que el nombre contiene uno de los tamaños permitidos
-      return sizes.some(s => new RegExp(`\\b${s}\\s*(ml|l|g|gr|cc)`, 'i').test(p.productName))
-    })
+    // Descartar si no tiene ninguna palabra clave de la categoría
+    if (mustContain.length > 0 && !mustContain.some(w => name.includes(w))) return false
+    // Verificar que la marca esté en la lista permitida
+    return allowed.some(({ brand }) => name.includes(normalizeName(brand)))
   })
 }
 
@@ -142,26 +154,29 @@ function deduplicateBrandSize(results) {
 // Queries extra por categoría.
 // all:       se corren en TODOS los scrapers (fetch + browser)
 // fetchOnly: solo en scrapers sin browser (rápidos) — evita sobrecargar RAM del server
+// Queries extra por marca — brand+keyword para resultados precisos y evitar contaminación
+// all:       todos los scrapers (fetch + browser)
+// fetchOnly: solo scrapers sin browser (menos RAM)
 const CATEGORY_EXTRA_BRAND_QUERIES = {
   'shampoo': {
-    all:       ['familand'],
-    fetchOnly: ['head shoulders', 'pantene', 'sedal', 'elvive', 'dove shampoo', 'fructis'],
+    all:       ['familand shampoo'],
+    fetchOnly: ['head shoulders shampoo', 'pantene shampoo', 'elvive shampoo', 'dove shampoo', 'fructis shampoo', 'sedal shampoo'],
   },
   'tinturas': {
-    all:       ['ilicit'],
-    fetchOnly: ['issue tintura', 'nutrisse', 'cor intensa', 'excellence'],
+    all:       ['ilicit tintura'],
+    fetchOnly: ['issue tintura', 'nutrisse tintura', 'cor intensa tintura', 'excellence tintura'],
   },
   'desodorantes': {
-    all:       ['lady speed stick'],
-    fetchOnly: ['axe desodorante', 'dove desodorante', 'rexona desodorante', 'nivea desodorante', 'old spice', 'speed stick desodorante'],
+    all:       ['lady speed stick desodorante'],
+    fetchOnly: ['axe desodorante', 'dove desodorante', 'rexona desodorante', 'nivea desodorante', 'old spice desodorante', 'speed stick desodorante'],
   },
   'pastas de dientes': {
-    all:       ['colgate'],
-    fetchOnly: ['pepsodent', 'aquafresh'],
+    all:       ['colgate pasta dental'],
+    fetchOnly: ['pepsodent pasta dental', 'aquafresh pasta dental'],
   },
   'jabones': {
     all:       [],
-    fetchOnly: ['dove jabon', 'protex', 'simonds'],
+    fetchOnly: ['dove jabon', 'protex jabon', 'simonds jabon'],
   },
 }
 
