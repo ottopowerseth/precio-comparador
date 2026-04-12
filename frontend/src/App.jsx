@@ -53,6 +53,7 @@ const _STOPWORDS = [
   'en barra', 'en spray', 'para cabello',
   'shampoo', 'champu', 'desodorante', 'jabon',
   'tintura', 'original', 'spray', 'barra',
+  'anticaries', 'grande', 'chico', 'mediano',
 ]
 
 const _BRAND_NORMS = [
@@ -225,10 +226,10 @@ function groupProducts(items, sortOrder) {
       if (merged.has(j)) continue
       const gb = groupList[j]
       const brandOk = !ga._brand || !gb._brand || ga._brand === gb._brand
-      const sizeOk  = ga._sizeNum !== null && ga._sizeNum === gb._sizeNum
+      const sizeOk  = ga._sizeNum === gb._sizeNum  // null === null también es true
       if (!brandOk || !sizeOk) continue
       const sim = _nameSimilarity(ga._namePart, gb._namePart)
-      if (sim >= 0.8) {
+      if (sim >= 0.75) {
         // Fusionar gb en ga
         for (const t of gb.tiendas) ga.tiendas.push(t)
         if (!ga.imagen && gb.imagen) ga.imagen = gb.imagen
