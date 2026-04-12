@@ -104,9 +104,22 @@ function deduplicateStore(results) {
   })
 }
 
-// Búsquedas adicionales por categoría para productos que no aparecen con el término genérico
-const CATEGORY_EXTRA_QUERIES = {
-  'tinturas': ['nutrisse cor intensa', 'ilicit'],
+// Para categorías: buscar cada marca directamente en paralelo por tienda
+// así garantizamos encontrar todas las marcas aunque no salgan en búsqueda genérica
+const CATEGORY_BRAND_QUERIES = {
+  'shampoo': [
+    'head shoulders shampoo', 'pantene shampoo', 'elvive shampoo',
+    'familand shampoo', 'dove shampoo', 'sedal shampoo', 'fructis shampoo',
+  ],
+  'tinturas': [
+    'ilicit tintura', 'nutrisse tintura', 'cor intensa', 'excellence tintura', 'issue tintura',
+  ],
+  'desodorantes': [
+    'axe desodorante', 'rexona desodorante', 'speed stick',
+    'nivea desodorante', 'dove desodorante', 'old spice',
+  ],
+  'pastas de dientes': ['colgate pasta dental', 'pepsodent', 'aquafresh'],
+  'jabones': ['simonds jabon', 'dove jabon', 'protex jabon'],
 }
 
 const SCRAPERS = [
@@ -146,56 +159,47 @@ app.get('/api/search', async (req, res) => {
   const storeStatus = {}
   const allResults = []
 
-  // Ejecutar scrapers de forma secuencial para no sobrecargar RAM
+  // Detectar si la búsqueda es una categoría conocida para hacer búsquedas por marca
+  const qNorm = normalizeName(query)
+  const categoryKey = Object.keys(CATEGORY_BRAND_QUERIES).find(k => qNorm.includes(normalizeName(k)))
+  const brandQueries = categoryKey ? CATEGORY_BRAND_QUERIES[categoryKey] : null
+
+  console.log(brandQueries ? `[category] ${categoryKey} → ${brandQueries.length} brand queries` : `[search] simple query`)
+
+  // Para categorías: cada tienda corre todas las marcas EN PARALELO (más rápido y completo)
   for (const { key, fn } of SCRAPERS) {
     try {
-      const results = await Promise.race([
-        fn(query),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 45000)
-        ),
-      ])
-      const unique = applyQueryFilter(query, deduplicateStore(results))
-      recordPrices(unique)          // guardar precios en historial
+      let rawResults
+      if (brandQueries) {
+        // Búsqueda por categoría: ejecutar cada marca SECUENCIAL (no paralelo) para evitar sobrecargar
+        const brandResults = []
+        for (const bq of brandQueries) {
+          try {
+            const result = await Promise.race([
+              fn(bq),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000))
+            ])
+            if (result && result.length > 0) brandResults.push(...result)
+          } catch (e) {
+            console.error(`  [${key}] brand query "${bq}" failed:`, e.message)
+          }
+        }
+        rawResults = brandResults
+      } else {
+        rawResults = await Promise.race([
+          fn(query),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
+        ])
+      }
+      const unique = applyQueryFilter(query, deduplicateStore(rawResults))
+      recordPrices(unique)
       allResults.push(...unique)
       storeStatus[key] = 'ok'
-      // Mandar resultados de esta tienda al frontend
       res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: unique, status: 'ok' })}\n\n`)
     } catch (err) {
       console.error(`[${key}] error:`, err.message)
       storeStatus[key] = err.message === 'timeout' ? 'timeout' : 'error'
       res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: [], status: storeStatus[key] })}\n\n`)
-    }
-  }
-
-  // Búsquedas suplementarias (ej: "nutrisse cor intensa" cuando buscan "tinturas")
-  const qNorm = normalizeName(query)
-  const extraQueries = Object.entries(CATEGORY_EXTRA_QUERIES)
-    .find(([cat]) => qNorm.includes(normalizeName(cat)))?.[1] || []
-
-  const seenKeys = new Set(allResults.map(r => `${r.store}|${normalizeName(r.productName)}`))
-
-  for (const extraQ of extraQueries) {
-    for (const { key, fn } of SCRAPERS) {
-      try {
-        const results = await Promise.race([
-          fn(extraQ),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
-        ])
-        // Solo agregar productos nuevos (no duplicados)
-        const fresh = results.filter(p => {
-          const k = `${p.store}|${normalizeName(p.productName)}`
-          if (seenKeys.has(k)) return false
-          seenKeys.add(k)
-          return true
-        })
-        const unique = applyQueryFilter(query, deduplicateStore(fresh))
-        if (unique.length > 0) {
-          recordPrices(unique)
-          allResults.push(...unique)
-          res.write(`data: ${JSON.stringify({ type: 'store', store: key, results: unique, status: 'ok' })}\n\n`)
-        }
-      } catch { /* ignorar errores en búsquedas extra */ }
     }
   }
 

@@ -21,7 +21,7 @@ export async function scrapeLiquimax(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('[class*="product-item"]')
-      return Array.from(items).slice(0, 10).map(el => {
+      return Array.from(items).slice(0, 15).map(el => {
         // Nombre: primer enlace a /products/ con texto suficiente
         const links = Array.from(el.querySelectorAll('a'))
         const nameEl = links.find(a =>

@@ -10,13 +10,13 @@ export async function scrapeLaMundial(query) {
   try {
     await page.goto(`https://perfumerialamundial.cl/search?type=product&q=${encodeURIComponent(query)}*`, {
       waitUntil: 'domcontentloaded',
-      timeout: 15000,
+      timeout: 25000,
     })
-    await page.waitForSelector('.productgrid--item', { timeout: 10000 })
+    await page.waitForSelector('.productgrid--item', { timeout: 12000 })
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('.productgrid--item')
-      return Array.from(items).slice(0, 10).map(el => {
+      return Array.from(items).slice(0, 15).map(el => {
         const name = el.querySelector('.productitem--title, [class*="productitem__title"], [class*="title"] a')?.innerText?.trim() || ''
         const priceText = el.querySelector('.productitem__price, .price')?.innerText?.trim() || '0'
         // Tomar el ÚLTIMO precio (precio actual/con descuento cuando hay precio original)

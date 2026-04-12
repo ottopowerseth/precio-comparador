@@ -10,14 +10,14 @@ export async function scrapePreunic(query) {
   try {
     // Ir directo a la URL de búsqueda de Preunic (Algolia)
     await page.goto(`https://preunic.cl/products?query=${encodeURIComponent(query)}`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForSelector('.ais-Hits-item', { timeout: 10000 })
+    await page.waitForSelector('.ais-Hits-item', { timeout: 12000 })
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('.ais-Hits-item')
-      return Array.from(items).slice(0, 10).map(el => {
+      return Array.from(items).slice(0, 15).map(el => {
         const lines = el.innerText.split('\n').map(l => l.trim()).filter(Boolean)
         // Nombre: línea que no es precio ni porcentaje ni muy corta
         const name = lines.find(l => l.length > 10 && !l.startsWith('$') && !l.startsWith('-') && !/^\d+$/.test(l)) || ''

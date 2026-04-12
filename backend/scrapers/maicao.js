@@ -10,13 +10,13 @@ export async function scrapeMaicao(query) {
   try {
     // Ir directo a la URL de búsqueda
     await page.goto(`https://www.maicao.cl/busqueda?q=${encodeURIComponent(query)}`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
 
     // Cerrar modal de ubicación si aparece
     await page.locator('button:has-text("MANTENER")').click({ timeout: 3000 }).catch(() => {})
-    await page.waitForTimeout(4000)
+    await page.waitForTimeout(2000)
 
     // Intentar encontrar productos (Maicao usa JS pesado, no siempre carga en headless)
     const hasProducts = await page.waitForSelector(
@@ -28,7 +28,7 @@ export async function scrapeMaicao(query) {
 
     return await page.evaluate(() => {
       const items = document.querySelectorAll('[class*="product-tile"], [class*="product-item"], [class*="item-template"]')
-      return Array.from(items).slice(0, 10).map(el => {
+      return Array.from(items).slice(0, 15).map(el => {
         const name = el.querySelector('[class*="name"], [class*="title"], h3, h2')?.innerText?.trim() || ''
         const priceText = el.querySelector('[class*="price"]')?.innerText?.trim() || '0'
         const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0
