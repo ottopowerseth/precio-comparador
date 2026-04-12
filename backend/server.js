@@ -136,14 +136,16 @@ function deduplicateBrandSize(results) {
 // Para categorías: búsqueda genérica devuelve las marcas principales.
 // Solo agregamos 1-2 queries extra para marcas que raramente aparecen en búsqueda genérica.
 // Mantener pocas queries para no sobrecargar el browser.
-// Extra queries por categoría: solo marcas que no aparecen en búsqueda genérica
-// Mínimas para no sobrecargar el browser (máx 3 por categoría)
+// Una sola búsqueda extra por categoría para marcas que raramente aparecen en genérico
+// Solo 1 query extra para no sobrecargar el browser (server tiene 454MB RAM)
+// 1 sola query extra por categoría para la marca más difícil de encontrar
+// Mantener mínimo para no crashear el browser (servidor con 454MB RAM)
 const CATEGORY_EXTRA_BRAND_QUERIES = {
-  'shampoo':           ['dove shampoo', 'pantene shampoo', 'familand shampoo'],
-  'tinturas':          ['ilicit tintura', 'nutrisse tintura'],
-  'desodorantes':      ['axe desodorante', 'rexona desodorante'],
-  'pastas de dientes': ['colgate', 'pepsodent'],
-  'jabones':           ['dove jabon', 'protex'],
+  'shampoo':           ['familand'],
+  'tinturas':          ['ilicit'],
+  'desodorantes':      ['lady speed stick'],
+  'pastas de dientes': [],
+  'jabones':           [],
 }
 
 const SCRAPERS = [

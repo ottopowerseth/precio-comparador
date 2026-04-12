@@ -10,18 +10,14 @@ async function launchBrowser() {
       '--no-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
       '--disable-extensions',
       '--disable-background-networking',
       '--disable-default-apps',
       '--disable-sync',
       '--disable-translate',
       '--hide-scrollbars',
-      '--metrics-recording-only',
       '--mute-audio',
       '--no-first-run',
-      '--safebrowsing-disable-auto-update',
     ],
   })
   b.on('disconnected', () => {
@@ -33,6 +29,7 @@ async function launchBrowser() {
 }
 
 export async function getBrowser() {
+  // Si está caído, limpiar estado
   if (browser && !browser.isConnected()) {
     browser = null
     launching = null
@@ -43,9 +40,31 @@ export async function getBrowser() {
       browser = b
       launching = null
       return b
+    }).catch(err => {
+      launching = null
+      throw err
     })
   }
   return launching
+}
+
+// Obtiene una nueva página, reintentando con browser nuevo si el actual está caído
+export async function newPage() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const b = await getBrowser()
+      return await b.newPage()
+    } catch (err) {
+      if (attempt === 0 && (err.message.includes('closed') || err.message.includes('disconnected'))) {
+        // Forzar relanzamiento del browser y reintentar
+        browser = null
+        launching = null
+        console.log('[browser] forcing relaunch after error:', err.message)
+        continue
+      }
+      throw err
+    }
+  }
 }
 
 export async function closeBrowser() {

@@ -1,9 +1,8 @@
-import { getBrowser } from '../browser.js'
+import { newPage } from '../browser.js'
 
 export async function scrapeLiquimax(query) {
   
-  const browser = await getBrowser()
-  const page = await browser.newPage()
+  const page = await newPage()
   await page.setExtraHTTPHeaders({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36'
   })
