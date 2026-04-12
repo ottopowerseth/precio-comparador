@@ -68,20 +68,32 @@ const _KNOWN_BRANDS = [
 
 // Tipo por defecto para marcas monomorfas (cuando el nombre no indica el tipo)
 const _BRAND_DEFAULT_TYPE = {
+  // shampoo — marcas que SOLO hacen shampoo en este contexto
+  // (no Dove porque también hace jabones y desodorantes)
+  'head shoulders': 'shampoo',
+  'pantene':        'shampoo',
+  'elvive':         'shampoo',
+  'familand':       'shampoo',
+  'fructis':        'shampoo',
+  'sedal':          'shampoo',
   // pastas dentales
-  'colgate':     'pasta dental',
-  'pepsodent':   'pasta dental',
-  'aquafresh':   'pasta dental',
+  'colgate':        'pasta dental',
+  'pepsodent':      'pasta dental',
+  'aquafresh':      'pasta dental',
   // jabones
-  'simonds':     'jabon',
-  'protex':      'jabon',
+  'simonds':        'jabon',
+  'protex':         'jabon',
   // tinturas — "Excellence 48" y "Excellence Tintura 48" se agrupan juntos
-  'ilicit':      'tintura',
-  'nutrisse':    'tintura',
-  'cor intensa': 'tintura',
-  'excellence':  'tintura',
-  'issue':       'tintura',
+  'ilicit':         'tintura',
+  'nutrisse':       'tintura',
+  'cor intensa':    'tintura',
+  'excellence':     'tintura',
+  'issue':          'tintura',
 }
+
+// Tipos donde el tamaño no distingue el producto para comparación de precios
+// (todas las tinturas Ilicit van a la misma card sin importar si dice 50ml o no)
+const _SIZE_AGNOSTIC_TYPES = new Set(['tintura'])
 
 // Nombres de display para tipos canónicos
 const _TYPE_DISPLAY = {
@@ -203,13 +215,20 @@ function getGroupKey(name) {
   const brand  = _brand(n)
   const size   = _size(n)
   const type   = _type(n) || _BRAND_DEFAULT_TYPE[brand] || ''
-  const key    = `${brand}_${type}_${size || 'nosize'}`
-  const sizeNum = size ? parseInt(size) : null
+
+  // Para tipos donde el tamaño no distingue el producto (ej: tinturas),
+  // ignorar el tamaño en la clave para que todas las variaciones se agrupen
+  const sizeKey = _SIZE_AGNOSTIC_TYPES.has(type) ? 'nosize' : (size || 'nosize')
+  const key     = `${brand}_${type}_${sizeKey}`
+
+  const sizeNum  = size ? parseInt(size) : null
   const sizeUnit = size ? size.replace(/\d+/, '') : null
 
   const brandDisp = _BRAND_DISPLAY[brand] || (brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '')
   const typeDisp  = _TYPE_DISPLAY[type] || (type ? type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '')
-  const canonicalName = [brandDisp, typeDisp, size || ''].filter(Boolean).join(' ')
+  // Para tinturas no mostrar tamaño en el nombre canónico (irrelevante para la comparación)
+  const showSize  = !_SIZE_AGNOSTIC_TYPES.has(type)
+  const canonicalName = [brandDisp, typeDisp, showSize ? (size || '') : ''].filter(Boolean).join(' ')
 
   return { brand, type, size, sizeNum, sizeUnit, key, canonicalName }
 }
